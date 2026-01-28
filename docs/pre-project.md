@@ -13,6 +13,22 @@
 * Python: 3.14
 * GUI: **PySide6 (Qt for Python)**
 
+### 1.1 필수/선택 설치 항목
+
+* 필수
+  * PySide6
+  * httpx
+* 선택
+  * PyInstaller (배포용)
+  * pytest (테스트 실행)
+
+### 1.2 패키지 버전 정책(권장)
+
+* 기본 방침: 안정 버전 고정(semantic version pin)
+  * 예: `pyside6==X.Y.Z`, `httpx==X.Y.Z`
+* 보안 패치 반영을 위해 정기적으로 버전 점검
+* 배포용(PyInstaller) 버전은 빌드 재현성을 위해 고정
+
 
 ## 2) 프로토타입 범위(MVP)
 

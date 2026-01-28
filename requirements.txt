@@ -1,0 +1,7 @@
+# Runtime dependencies
+pyside6==6.10.1
+httpx==0.28.1
+
+# Tooling / optional (install when needed)
+pyinstaller==6.18.0
+pytest==9.0.2
