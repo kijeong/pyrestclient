@@ -10,6 +10,12 @@ class AuthType(Enum):
     BEARER = "bearer"
 
 
+class EnvironmentScope(Enum):
+    GLOBAL = "global"
+    COLLECTION = "collection"
+    REQUEST = "request"
+
+
 @dataclass(slots=True)
 class AuthConfig:
     auth_type: AuthType
@@ -58,3 +64,51 @@ class ResponseData:
     body: str
     elapsed_ms: int
     error: str | None = None
+
+
+@dataclass(slots=True)
+class WorkspaceCollection:
+    id: str
+    name: str
+    description: str = ""
+
+
+@dataclass(slots=True)
+class WorkspaceFolder:
+    id: str
+    collection_id: str
+    parent_id: str | None
+    name: str
+    order: int = 0
+
+
+@dataclass(slots=True)
+class WorkspaceRequest:
+    id: str
+    folder_id: str
+    name: str
+    method: str
+    url: str
+    headers: list[tuple[str, str]] = field(default_factory=list)
+    params: list[tuple[str, str]] = field(default_factory=list)
+    body: str = ""
+    auth: AuthConfig = field(default_factory=AuthConfig.none)
+    timeout_ms: int = 10000
+    network: NetworkConfig = field(default_factory=NetworkConfig)
+
+
+@dataclass(slots=True)
+class WorkspaceEnvironment:
+    scope: EnvironmentScope
+    owner_id: str | None
+    variables: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class WorkspaceData:
+    schema_version: int
+    updated_at: str | None = None
+    collections: list[WorkspaceCollection] = field(default_factory=list)
+    folders: list[WorkspaceFolder] = field(default_factory=list)
+    requests: list[WorkspaceRequest] = field(default_factory=list)
+    environments: list[WorkspaceEnvironment] = field(default_factory=list)
