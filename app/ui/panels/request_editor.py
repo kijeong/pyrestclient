@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QFormLayout,
     QHBoxLayout,
@@ -15,7 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from core.model import AuthConfig, AuthType, RequestData
+from core.model import AuthConfig, AuthType, NetworkConfig, RequestData
 
 METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"]
 AUTH_OPTIONS = ["No Auth", "Basic Auth", "Bearer Token"]
@@ -34,6 +35,10 @@ class RequestTabWidgets:
     auth_user_edit: QLineEdit
     auth_password_edit: QLineEdit
     auth_token_edit: QLineEdit
+    proxy_edit: QLineEdit
+    verify_ssl_check: QCheckBox
+    follow_redirects_check: QCheckBox
+    trust_env_check: QCheckBox
 
 
 class RequestEditorPanel(QWidget):
@@ -121,10 +126,26 @@ class RequestEditorPanel(QWidget):
         auth_layout.addRow(QLabel("Password"), auth_password_edit)
         auth_layout.addRow(QLabel("Token"), auth_token_edit)
 
+        network_tab = QWidget()
+        network_layout = QFormLayout(network_tab)
+        proxy_edit = QLineEdit()
+        proxy_edit.setPlaceholderText("http://proxy.local:8080")
+        verify_ssl_check = QCheckBox("Verify SSL")
+        verify_ssl_check.setChecked(True)
+        follow_redirects_check = QCheckBox("Follow Redirects")
+        trust_env_check = QCheckBox("Trust Environment Proxies")
+        trust_env_check.setChecked(True)
+
+        network_layout.addRow(QLabel("Proxy URL"), proxy_edit)
+        network_layout.addRow(verify_ssl_check)
+        network_layout.addRow(follow_redirects_check)
+        network_layout.addRow(trust_env_check)
+
         editor_tabs.addTab(headers_table, "Headers")
         editor_tabs.addTab(params_table, "Params")
         editor_tabs.addTab(body_editor, "Body")
         editor_tabs.addTab(auth_tab, "Auth")
+        editor_tabs.addTab(network_tab, "Network")
 
         layout.addWidget(editor_tabs)
         self._request_tab_data.append(
@@ -140,6 +161,10 @@ class RequestEditorPanel(QWidget):
                 auth_user_edit=auth_user_edit,
                 auth_password_edit=auth_password_edit,
                 auth_token_edit=auth_token_edit,
+                proxy_edit=proxy_edit,
+                verify_ssl_check=verify_ssl_check,
+                follow_redirects_check=follow_redirects_check,
+                trust_env_check=trust_env_check,
             )
         )
         return container
@@ -158,6 +183,12 @@ class RequestEditorPanel(QWidget):
             body=tab_data.body_editor.toPlainText(),
             auth=self._resolve_auth(tab_data),
             timeout_ms=int(tab_data.timeout_spin.value()),
+            network=NetworkConfig(
+                proxy_url=tab_data.proxy_edit.text().strip(),
+                verify_ssl=tab_data.verify_ssl_check.isChecked(),
+                follow_redirects=tab_data.follow_redirects_check.isChecked(),
+                trust_env=tab_data.trust_env_check.isChecked(),
+            ),
         )
         return request
 

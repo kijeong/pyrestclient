@@ -31,6 +31,14 @@ class AuthConfig:
 
 
 @dataclass(slots=True)
+class NetworkConfig:
+    proxy_url: str = ""
+    verify_ssl: bool = True
+    follow_redirects: bool = False
+    trust_env: bool = True
+
+
+@dataclass(slots=True)
 class RequestData:
     name: str
     method: str
@@ -40,6 +48,7 @@ class RequestData:
     body: str = ""
     auth: AuthConfig = field(default_factory=AuthConfig.none)
     timeout_ms: int = 10000
+    network: NetworkConfig = field(default_factory=NetworkConfig)
 
 
 @dataclass(slots=True)

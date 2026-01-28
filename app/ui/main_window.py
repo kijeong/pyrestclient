@@ -3,6 +3,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QLabel,
     QMainWindow,
+    QMessageBox,
     QPushButton,
     QSplitter,
     QToolBar,
@@ -24,6 +25,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("REST Client Prototype")
         self.resize(1200, 800)
 
+        self._environments = self._build_environments()
         self._collection_tree = CollectionTreePanel()
         self._collection_tree.setMinimumWidth(240)
         self._request_editor = RequestEditorPanel()
@@ -48,7 +50,7 @@ class MainWindow(QMainWindow):
 
         env_label = QLabel("Environment:")
         self._environment_combo = QComboBox()
-        self._environment_combo.addItems(["No Environment", "Dev", "Staging", "Prod"])
+        self._environment_combo.addItems(list(self._environments.keys()))
         self._manage_env_button = QPushButton("Manage")
 
         toolbar.addWidget(env_label)
@@ -60,6 +62,7 @@ class MainWindow(QMainWindow):
     def _connect_signals(self) -> None:
         self._send_button.clicked.connect(self._on_send_clicked)
         self._cancel_button.clicked.connect(self._on_cancel_clicked)
+        self._manage_env_button.clicked.connect(self._on_manage_env_clicked)
 
     def _init_layout(self) -> None:
         main_splitter = QSplitter(orientation=Qt.Orientation.Horizontal)
@@ -96,7 +99,8 @@ class MainWindow(QMainWindow):
         self._send_button.setEnabled(False)
         self._cancel_button.setEnabled(False)
 
-        worker = RequestWorker(request, self._http_client)
+        environment = self._current_environment()
+        worker = RequestWorker(request, self._http_client, environment)
         worker.response_ready.connect(self._on_response_ready)
         worker.failed.connect(self._on_request_failed)
         worker.finished.connect(self._on_worker_finished)
@@ -116,3 +120,34 @@ class MainWindow(QMainWindow):
         self._send_button.setEnabled(True)
         self._cancel_button.setEnabled(False)
         self._current_worker = None
+
+    def _on_manage_env_clicked(self) -> None:
+        environment = self._current_environment()
+        if 0 == len(environment):
+            QMessageBox.information(self, "Environment", "선택된 Environment에 변수가 없습니다.")
+            return
+
+        details = "\n".join(f"{key} = {value}" for key, value in environment.items())
+        QMessageBox.information(self, "Environment Variables", details)
+
+    def _current_environment(self) -> dict[str, str]:
+        name = self._environment_combo.currentText()
+        return dict(self._environments.get(name, {}))
+
+    @staticmethod
+    def _build_environments() -> dict[str, dict[str, str]]:
+        return {
+            "No Environment": {},
+            "Dev": {
+                "env_name": "dev",
+                "base_url": "https://httpbin.org",
+            },
+            "Staging": {
+                "env_name": "staging",
+                "base_url": "https://httpbin.org",
+            },
+            "Prod": {
+                "env_name": "prod",
+                "base_url": "https://httpbin.org",
+            },
+        }

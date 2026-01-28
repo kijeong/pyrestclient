@@ -36,6 +36,10 @@ class HttpClient:
             content=content,
             timeout=httpx.Timeout(timeout_ms / 1000.0),
             auth=auth,
+            proxy=request.network.proxy_url or None,
+            verify=request.network.verify_ssl,
+            follow_redirects=request.network.follow_redirects,
+            trust_env=request.network.trust_env,
         )
 
         elapsed_ms = int(response.elapsed.total_seconds() * 1000)
