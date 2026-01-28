@@ -23,8 +23,9 @@
   * 좌측: Collections/폴더 트리
   * 중앙: Request 편집(메서드, URL, 헤더, 바디 탭)
   * 하단/우측: Response 뷰(Body/Headers 탭, status code, elapsed time)
-  * 상단: Send / Cancel 버튼
+  * 상단: Send / Cancel 버튼, **Environment 선택/관리**
 * 탭 기반 멀티 요청 편집(최소 1개 탭은 필수)
+* Environment 관리자 (Global/Collection 변수 편집) UI
 
 ### 2.2 HTTP 기능
 
@@ -63,13 +64,18 @@
   * collections / folders / requests / environments / meta(schema_version)
 * Atomic write(저장 중 크래시로 파일 깨짐 방지)
 
-### 2.4 비범위(후순위)
+### 2.5 비범위(후순위)
 
 * OAuth2 고급 플로우, WebSocket/SSE, gRPC, 협업/동기화, Pre-request/Test scripting
 
-### 2.5 시스템/디버깅
+### 2.6 시스템/디버깅
 * Logging: 파일 및 콘솔 로그 (Crash 분석용)
 * Global Exception Handler: UI 멈춤 방지 및 에러 다이얼로그
+
+### 2.7 배포 (Distribution)
+* Target: Rocky Linux 9 (x86_64)
+* 패키징: PyInstaller (Single File or Directory)
+* 형식: AppImage (권장 - 이식성 높음) 또는 RPM
 
 ---
 
@@ -181,20 +187,28 @@ rest-client/
 * 응답 status/headers/body 표시
 * JSON pretty print
 * Timeout 처리
+* Basic Auth / Bearer Token 지원
 
-### M3: Cancel
+### M3: 시스템 & 네트워크 고급
+
+* Logging & Exception Handler 적용
+* Proxy / SSL Verification 설정
+* Environment 변수 치환 로직 연동
+
+### M4: Cancel
 
 * 진행 중 요청 취소
 * UI 상태 복구(버튼/스피너/상태바)
 * 연속 요청에서도 UI 프리즈 없음
 
-### M4: JSON 저장/로드
+### M5: JSON 저장/로드
 
 * workspace.json 저장/로드
 * schema_version 포함
 * atomic write 적용
+* Environment 데이터 저장/로드
 
-(선택) M5: History JSONL
+(선택) M6: History JSONL
 
 * history.jsonl append 방식
 * UI에 최근 요청 목록 표시
