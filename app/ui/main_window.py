@@ -97,24 +97,34 @@ class MainWindow(QMainWindow):
 
         self._response_viewer.set_loading(request.name)
         self._send_button.setEnabled(False)
-        self._cancel_button.setEnabled(False)
+        self._cancel_button.setEnabled(True)
 
         environment = self._current_environment()
         worker = RequestWorker(request, self._http_client, environment)
         worker.response_ready.connect(self._on_response_ready)
         worker.failed.connect(self._on_request_failed)
+        worker.canceled.connect(self._on_request_canceled)
         worker.finished.connect(self._on_worker_finished)
         self._current_worker = worker
         worker.start()
 
     def _on_cancel_clicked(self) -> None:
-        self._response_viewer.set_error("Cancel 기능은 M4에서 제공됩니다.")
+        if not self._current_worker or not self._current_worker.isRunning():
+            self._response_viewer.set_error("취소할 요청이 없습니다.")
+            return
+
+        self._response_viewer.set_canceling()
+        self._cancel_button.setEnabled(False)
+        self._current_worker.cancel()
 
     def _on_response_ready(self, response: ResponseData) -> None:
         self._response_viewer.set_response(response)
 
     def _on_request_failed(self, message: str) -> None:
         self._response_viewer.set_error(message)
+
+    def _on_request_canceled(self) -> None:
+        self._response_viewer.set_canceled()
 
     def _on_worker_finished(self) -> None:
         self._send_button.setEnabled(True)

@@ -41,11 +41,23 @@ class ResponseViewerPanel(QWidget):
         self._body_view.setPlainText("Sending request...")
         self._headers_view.setPlainText("")
 
+    def set_canceling(self) -> None:
+        self._status_label.setText("Status: Canceling")
+        self._time_label.setText("Time: --")
+        self._body_view.setPlainText("Canceling request...")
+        self._headers_view.setPlainText("")
+
     def set_response(self, response: ResponseData) -> None:
         self._status_label.setText(f"Status: {response.status_code}")
         self._time_label.setText(f"Time: {response.elapsed_ms} ms")
         self._body_view.setPlainText(response.body)
         self._headers_view.setPlainText(self._format_headers(response.headers))
+
+    def set_canceled(self) -> None:
+        self._status_label.setText("Status: Canceled")
+        self._time_label.setText("Time: --")
+        self._body_view.setPlainText("Request canceled by user.")
+        self._headers_view.setPlainText("")
 
     def set_error(self, message: str) -> None:
         self._status_label.setText("Status: Error")
