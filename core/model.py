@@ -67,6 +67,17 @@ class ResponseData:
 
 
 @dataclass(slots=True)
+class HistoryEntry:
+    timestamp: str
+    name: str
+    method: str
+    url: str
+    status_code: int | None = None
+    elapsed_ms: int | None = None
+    error: str | None = None
+
+
+@dataclass(slots=True)
 class WorkspaceCollection:
     id: str
     name: str
