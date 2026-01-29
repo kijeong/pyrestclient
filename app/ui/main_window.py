@@ -1,6 +1,6 @@
 import datetime
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -38,6 +38,9 @@ class MainWindow(QMainWindow):
         self._http_client = HttpClient()
         self._current_worker: RequestWorker | None = None
         self._workspace_path: str | None = None
+        self._notification_timer = QTimer(self)
+        self._notification_timer.setSingleShot(True)
+        self._notification_timer.timeout.connect(self._hide_notification)
 
         self._init_menu()
         self._init_toolbar()
@@ -99,6 +102,22 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         layout = QVBoxLayout(central_widget)
         layout.setContentsMargins(8, 8, 8, 8)
+        self._notification_banner = QLabel()
+        self._notification_banner.setVisible(False)
+        self._notification_banner.setWordWrap(True)
+        self._notification_banner.setAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+        self._notification_banner.setStyleSheet(
+            ""
+            "background-color: #fff3cd;"
+            "color: #664d03;"
+            "border: 1px solid #ffecb5;"
+            "padding: 6px 10px;"
+            "border-radius: 4px;"
+            ""
+        )
+        layout.addWidget(self._notification_banner)
         layout.addWidget(main_splitter)
 
         self.setCentralWidget(central_widget)
@@ -176,7 +195,7 @@ class MainWindow(QMainWindow):
 
         self._apply_workspace(workspace)
         self._workspace_path = path
-        QMessageBox.information(self, "Open Workspace", "Workspace를 불러왔습니다.")
+        self._show_notification("Workspace를 불러왔습니다.")
 
     def _on_save_workspace(self) -> None:
         if self._workspace_path is None:
@@ -190,7 +209,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Save Workspace", f"저장 실패: {exc}")
             return
 
-        QMessageBox.information(self, "Save Workspace", "Workspace를 저장했습니다.")
+        self._show_notification("Workspace를 저장했습니다.")
 
     def _on_save_as_workspace(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
@@ -210,7 +229,7 @@ class MainWindow(QMainWindow):
             return
 
         self._workspace_path = path
-        QMessageBox.information(self, "Save Workspace", "Workspace를 저장했습니다.")
+        self._show_notification("Workspace를 저장했습니다.")
 
     def _current_environment(self) -> dict[str, str]:
         name = self._environment_combo.currentText()
@@ -228,6 +247,14 @@ class MainWindow(QMainWindow):
             requests=requests,
             environments=environments,
         )
+
+    def _show_notification(self, message: str) -> None:
+        self._notification_banner.setText(message)
+        self._notification_banner.setVisible(True)
+        self._notification_timer.start(3000)
+
+    def _hide_notification(self) -> None:
+        self._notification_banner.setVisible(False)
 
     def _apply_workspace(self, workspace: WorkspaceData) -> None:
         self._collection_tree.load_workspace_tree(
