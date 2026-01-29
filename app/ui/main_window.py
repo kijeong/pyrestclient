@@ -1,13 +1,17 @@
 import datetime
 
 from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QFontMetrics
 from PySide6.QtWidgets import (
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QFileDialog,
     QLabel,
     QMainWindow,
     QMenu,
     QMessageBox,
+    QPlainTextEdit,
     QPushButton,
     QSplitter,
     QToolBar,
@@ -201,11 +205,11 @@ class MainWindow(QMainWindow):
     def _on_manage_env_clicked(self) -> None:
         environment = self._current_environment()
         if 0 == len(environment):
-            QMessageBox.information(self, "Environment", "선택된 Environment에 변수가 없습니다.")
+            self._show_environment_dialog("Environment", "선택된 Environment에 변수가 없습니다.")
             return
 
         details = "\n".join(f"{key} = {value}" for key, value in environment.items())
-        QMessageBox.information(self, "Environment Variables", details)
+        self._show_environment_dialog("Environment Variables", details)
 
     def _on_open_workspace(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -285,6 +289,59 @@ class MainWindow(QMainWindow):
 
     def _hide_notification(self) -> None:
         self._notification_banner.setVisible(False)
+
+    def _show_environment_dialog(self, title: str, message: str) -> None:
+        dialog = QDialog(self)
+        dialog.setWindowTitle(title)
+        dialog.setModal(True)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(10)
+
+        message_view = QPlainTextEdit()
+        message_view.setReadOnly(True)
+        message_view.setPlainText(message)
+        message_view.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+
+        metrics = QFontMetrics(message_view.font())
+        lines = message.splitlines() or [""]
+        max_line_width = max(metrics.horizontalAdvance(line) for line in lines)
+        width_padding = 80
+        min_width = 360
+        max_width = 900
+        target_width = max(min_width, min(max_width, max_line_width + width_padding))
+
+        visible_lines = min(len(lines), 12)
+        line_height = metrics.lineSpacing()
+        target_height = line_height * visible_lines + 24
+        message_view.setFixedHeight(target_height)
+        message_view.setMinimumWidth(target_width)
+
+        layout.addWidget(message_view)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+        buttons.accepted.connect(dialog.accept)
+        layout.addWidget(buttons)
+
+        margins = layout.contentsMargins()
+        dialog_width = target_width + margins.left() + margins.right()
+        dialog_height = (
+            target_height
+            + buttons.sizeHint().height()
+            + margins.top()
+            + margins.bottom()
+            + layout.spacing()
+        )
+        dialog.setFixedSize(dialog_width, dialog_height)
+
+        parent_center = self.frameGeometry().center()
+        dialog.move(
+            parent_center.x() - (dialog_width // 2),
+            parent_center.y() - (dialog_height // 2),
+        )
+
+        dialog.exec()
 
     def _apply_workspace(self, workspace: WorkspaceData) -> None:
         self._collection_tree.load_workspace_tree(
