@@ -16,11 +16,25 @@ from PySide6.QtWidgets import (
 )
 
 from app.ui.panels.collection_tree import CollectionTreePanel
+from app.ui.panels.history_panel import HistoryPanel
 from app.ui.panels.request_editor import RequestEditorPanel
 from app.ui.panels.response_viewer import ResponseViewerPanel
 from core.http_client import HttpClient
-from core.model import EnvironmentScope, ResponseData, WorkspaceData, WorkspaceEnvironment
+from core.model import (
+    EnvironmentScope,
+    HistoryEntry,
+    RequestData,
+    ResponseData,
+    WorkspaceData,
+    WorkspaceEnvironment,
+)
+from core.storage.history_jsonl import (
+    append_history_entry,
+    default_history_path,
+    load_history_entries,
+)
 from core.storage.json_storage import load_workspace, save_workspace
+from core.template import render_request
 from workers.request_worker import RequestWorker
 
 
@@ -33,11 +47,14 @@ class MainWindow(QMainWindow):
         self._environments = self._build_environments()
         self._collection_tree = CollectionTreePanel()
         self._collection_tree.setMinimumWidth(240)
+        self._history_panel = HistoryPanel()
         self._request_editor = RequestEditorPanel()
         self._response_viewer = ResponseViewerPanel()
         self._http_client = HttpClient()
         self._current_worker: RequestWorker | None = None
         self._workspace_path: str | None = None
+        self._history_path = default_history_path()
+        self._pending_history_request: RequestData | None = None
         self._notification_timer = QTimer(self)
         self._notification_timer.setSingleShot(True)
         self._notification_timer.timeout.connect(self._hide_notification)
@@ -84,17 +101,24 @@ class MainWindow(QMainWindow):
         self._open_action.triggered.connect(self._on_open_workspace)
         self._save_action.triggered.connect(self._on_save_workspace)
         self._save_as_action.triggered.connect(self._on_save_as_workspace)
+        self._history_panel.entry_selected.connect(self._on_history_selected)
 
     def _init_layout(self) -> None:
         main_splitter = QSplitter(orientation=Qt.Orientation.Horizontal)
+        left_splitter = QSplitter(orientation=Qt.Orientation.Vertical)
         right_splitter = QSplitter(orientation=Qt.Orientation.Vertical)
+
+        left_splitter.addWidget(self._collection_tree)
+        left_splitter.addWidget(self._history_panel)
+        left_splitter.setStretchFactor(0, 3)
+        left_splitter.setStretchFactor(1, 2)
 
         right_splitter.addWidget(self._request_editor)
         right_splitter.addWidget(self._response_viewer)
         right_splitter.setStretchFactor(0, 3)
         right_splitter.setStretchFactor(1, 2)
 
-        main_splitter.addWidget(self._collection_tree)
+        main_splitter.addWidget(left_splitter)
         main_splitter.addWidget(right_splitter)
         main_splitter.setStretchFactor(0, 1)
         main_splitter.setStretchFactor(1, 3)
@@ -121,6 +145,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(main_splitter)
 
         self.setCentralWidget(central_widget)
+        self._load_history_entries()
 
     def _on_send_clicked(self) -> None:
         request = self._request_editor.build_request()
@@ -137,6 +162,7 @@ class MainWindow(QMainWindow):
         self._cancel_button.setEnabled(True)
 
         environment = self._current_environment()
+        self._pending_history_request = render_request(request, environment)
         worker = RequestWorker(request, self._http_client, environment)
         worker.response_ready.connect(self._on_response_ready)
         worker.failed.connect(self._on_request_failed)
@@ -156,17 +182,21 @@ class MainWindow(QMainWindow):
 
     def _on_response_ready(self, response: ResponseData) -> None:
         self._response_viewer.set_response(response)
+        self._record_history(status_code=response.status_code, elapsed_ms=response.elapsed_ms)
 
     def _on_request_failed(self, message: str) -> None:
         self._response_viewer.set_error(message)
+        self._record_history(error=message)
 
     def _on_request_canceled(self) -> None:
         self._response_viewer.set_canceled()
+        self._record_history(error="Canceled")
 
     def _on_worker_finished(self) -> None:
         self._send_button.setEnabled(True)
         self._cancel_button.setEnabled(False)
         self._current_worker = None
+        self._pending_history_request = None
 
     def _on_manage_env_clicked(self) -> None:
         environment = self._current_environment()
@@ -266,6 +296,42 @@ class MainWindow(QMainWindow):
         self._environments = self._build_environment_map(workspace)
         self._environment_combo.clear()
         self._environment_combo.addItems(list(self._environments.keys()))
+
+    def _load_history_entries(self) -> None:
+        try:
+            entries = load_history_entries(self._history_path)
+        except Exception as exc:
+            QMessageBox.warning(self, "History", f"History 로드 실패: {exc}")
+            return
+        self._history_panel.set_entries(entries)
+
+    def _record_history(
+        self,
+        status_code: int | None = None,
+        elapsed_ms: int | None = None,
+        error: str | None = None,
+    ) -> None:
+        request = self._pending_history_request
+        if request is None:
+            return
+        entry = HistoryEntry(
+            timestamp=datetime.datetime.now(tz=datetime.timezone.utc).isoformat(),
+            name=request.name,
+            method=request.method,
+            url=request.url,
+            status_code=status_code,
+            elapsed_ms=elapsed_ms,
+            error=error,
+        )
+        try:
+            append_history_entry(self._history_path, entry)
+        except Exception as exc:
+            QMessageBox.warning(self, "History", f"History 저장 실패: {exc}")
+        self._history_panel.add_entry(entry)
+
+    def _on_history_selected(self, entry: HistoryEntry) -> None:
+        self._request_editor.apply_history_entry(entry)
+        self._response_viewer.set_history_entry(entry)
 
     def _build_environment_map(self, workspace: WorkspaceData) -> dict[str, dict[str, str]]:
         environment_map: dict[str, dict[str, str]] = {"No Environment": {}}

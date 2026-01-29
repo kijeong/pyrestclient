@@ -1,4 +1,4 @@
-from core.model import ResponseData
+from core.model import HistoryEntry, ResponseData
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -63,6 +63,35 @@ class ResponseViewerPanel(QWidget):
         self._status_label.setText("Status: Error")
         self._time_label.setText("Time: --")
         self._body_view.setPlainText(message)
+        self._headers_view.setPlainText("")
+
+    def set_history_entry(self, entry: HistoryEntry) -> None:
+        status_text = "--"
+        if entry.error:
+            status_text = "Error"
+        elif entry.status_code is not None:
+            status_text = str(entry.status_code)
+
+        time_text = "--"
+        if entry.elapsed_ms is not None:
+            time_text = f"{entry.elapsed_ms} ms"
+
+        self._status_label.setText(f"Status: {status_text}")
+        self._time_label.setText(f"Time: {time_text}")
+
+        body_lines = [
+            f"Name: {entry.name}",
+            f"Method: {entry.method}",
+            f"URL: {entry.url}",
+        ]
+        if entry.error:
+            body_lines.append(f"Error: {entry.error}")
+        if entry.status_code is not None:
+            body_lines.append(f"Status: {entry.status_code}")
+        if entry.elapsed_ms is not None:
+            body_lines.append(f"Elapsed: {entry.elapsed_ms} ms")
+
+        self._body_view.setPlainText("\n".join(body_lines))
         self._headers_view.setPlainText("")
 
     @staticmethod

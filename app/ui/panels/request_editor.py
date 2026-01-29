@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from core.model import AuthConfig, AuthType, NetworkConfig, RequestData, WorkspaceRequest
+from core.model import AuthConfig, AuthType, HistoryEntry, NetworkConfig, RequestData, WorkspaceRequest
 
 METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"]
 AUTH_OPTIONS = ["No Auth", "Basic Auth", "Bearer Token"]
@@ -285,6 +285,25 @@ class RequestEditorPanel(QWidget):
                 folder_id=request.folder_id,
             )
             self._request_tabs.addTab(tab_widget, request.name)
+
+    def apply_history_entry(self, entry: HistoryEntry) -> None:
+        if 0 == self._request_tabs.count():
+            tab_widget = self._build_request_tab(
+                name=entry.name,
+                method=entry.method,
+                url=entry.url,
+                body_text="",
+            )
+            self._request_tabs.addTab(tab_widget, entry.name)
+            self._request_tabs.setCurrentWidget(tab_widget)
+            return
+
+        tab_index = self._request_tabs.currentIndex()
+        tab_data = self._request_tab_data[tab_index]
+        tab_data.name = entry.name
+        tab_data.method_combo.setCurrentText(entry.method)
+        tab_data.url_edit.setText(entry.url)
+        self._request_tabs.setTabText(tab_index, entry.name)
 
     def _create_key_value_table(
         self,

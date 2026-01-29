@@ -26,6 +26,30 @@ def append_history_entry(path: str | Path, entry: HistoryEntry) -> None:
             logger.exception("Failed to fsync history file")
 
 
+def load_history_entries(path: str | Path) -> list[HistoryEntry]:
+    target_path = Path(path)
+    if not target_path.exists():
+        return []
+
+    entries: list[HistoryEntry] = []
+    with target_path.open(mode="r", encoding="utf-8") as file_handle:
+        for line_number, line in enumerate(file_handle, start=1):
+            payload_text = line.strip()
+            if 0 == len(payload_text):
+                continue
+            try:
+                payload = json.loads(payload_text)
+                entries.append(_history_from_dict(payload))
+            except Exception:
+                logger.exception("Failed to parse history line %s", line_number)
+    return entries
+
+
+def default_history_path() -> Path:
+    project_root = Path(__file__).resolve().parents[2]
+    return project_root / "history.jsonl"
+
+
 def _history_to_dict(entry: HistoryEntry) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "timestamp": entry.timestamp,
@@ -40,3 +64,44 @@ def _history_to_dict(entry: HistoryEntry) -> dict[str, Any]:
     if entry.error:
         payload["error"] = entry.error
     return payload
+
+
+def _history_from_dict(payload: Any) -> HistoryEntry:
+    if not isinstance(payload, dict):
+        raise ValueError("history payload must be an object")
+    return HistoryEntry(
+        timestamp=_require_str(payload, "timestamp"),
+        name=_require_str(payload, "name"),
+        method=_require_str(payload, "method"),
+        url=_require_str(payload, "url"),
+        status_code=_optional_int(payload, "status_code"),
+        elapsed_ms=_optional_int(payload, "elapsed_ms"),
+        error=_optional_str(payload, "error"),
+    )
+
+
+def _require_str(payload: dict[str, Any], key: str) -> str:
+    value = payload.get(key)
+    if not isinstance(value, str) or 0 == len(value):
+        raise ValueError(f"{key} must be a non-empty string")
+    return value
+
+
+def _optional_int(payload: dict[str, Any], key: str) -> int | None:
+    value = payload.get(key)
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.isdigit():
+        return int(value)
+    raise ValueError(f"{key} must be an int")
+
+
+def _optional_str(payload: dict[str, Any], key: str) -> str | None:
+    value = payload.get(key)
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    raise ValueError(f"{key} must be a string")
