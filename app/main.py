@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import sys
 import traceback
 
@@ -22,7 +23,7 @@ def _handle_exception(exc_type: type[BaseException], exc: BaseException, tb: obj
 
 
 def main() -> None:
-    configure_logging()
+    configure_logging(level=logging.DEBUG)
     sys.excepthook = _handle_exception
 
     app = QApplication([])

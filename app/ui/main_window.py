@@ -1,12 +1,13 @@
 import datetime
 
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFontMetrics
+from PySide6.QtCore import QPoint, Qt, QTimer
+from PySide6.QtGui import QFontMetrics, QGuiApplication
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
+    QFrame,
     QLabel,
     QMainWindow,
     QMenu,
@@ -24,6 +25,7 @@ from app.ui.panels.history_panel import HistoryPanel
 from app.ui.panels.request_editor import RequestEditorPanel
 from app.ui.panels.response_viewer import ResponseViewerPanel
 from core.http_client import HttpClient
+from core.logger import get_logger
 from core.model import (
     EnvironmentScope,
     HistoryEntry,
@@ -40,6 +42,9 @@ from core.storage.history_jsonl import (
 from core.storage.json_storage import load_workspace, save_workspace
 from core.template import render_request
 from workers.request_worker import RequestWorker
+
+
+_LOGGER = get_logger(__name__)
 
 
 class MainWindow(QMainWindow):
@@ -62,6 +67,7 @@ class MainWindow(QMainWindow):
         self._notification_timer = QTimer(self)
         self._notification_timer.setSingleShot(True)
         self._notification_timer.timeout.connect(self._hide_notification)
+        self._environment_overlay: QWidget | None = None
 
         self._init_menu()
         self._init_toolbar()
@@ -291,6 +297,11 @@ class MainWindow(QMainWindow):
         self._notification_banner.setVisible(False)
 
     def _show_environment_dialog(self, title: str, message: str) -> None:
+        platform_name = QGuiApplication.platformName().lower()
+        if platform_name.startswith("wayland"):
+            self._show_environment_overlay(title, message)
+            return
+
         dialog = QDialog(self)
         dialog.setWindowTitle(title)
         dialog.setModal(True)
@@ -334,14 +345,149 @@ class MainWindow(QMainWindow):
             + layout.spacing()
         )
         dialog.setFixedSize(dialog_width, dialog_height)
+        _LOGGER.debug(
+            "env-dialog size=%s dialog_width=%s dialog_height=%s",
+            dialog.size(),
+            dialog_width,
+            dialog_height,
+        )
 
-        parent_center = self.frameGeometry().center()
-        dialog.move(
+        def _resolve_window_center() -> QPoint:
+            window_handle = self.windowHandle()
+            frame_geometry = self.frameGeometry()
+            global_center = self.mapToGlobal(self.rect().center())
+            screen = self.screen() or QGuiApplication.primaryScreen()
+            if screen is not None:
+                _LOGGER.debug(
+                    "env-dialog screen geometry=%s available=%s",
+                    screen.geometry(),
+                    screen.availableGeometry(),
+                )
+            _LOGGER.debug(
+                "env-dialog frameGeometry=%s rect=%s global_center=%s",
+                frame_geometry,
+                self.rect(),
+                global_center,
+            )
+            if window_handle is None:
+                _LOGGER.debug("env-dialog windowHandle missing")
+                return self.mapToGlobal(self.rect().center())
+            window_pos = window_handle.position()
+            window_size = window_handle.size()
+            _LOGGER.debug(
+                "env-dialog windowHandle pos=%s size=%s",
+                window_pos,
+                window_size,
+            )
+            return QPoint(
+                int(window_pos.x() + (window_size.width() / 2)),
+                int(window_pos.y() + (window_size.height() / 2)),
+            )
+
+        def _center_dialog() -> None:
+            parent_center = _resolve_window_center()
+            target_x = parent_center.x() - (dialog.width() // 2)
+            target_y = parent_center.y() - (dialog.height() // 2)
+            _LOGGER.debug(
+                "env-dialog parent_center=%s target=(%s,%s)",
+                parent_center,
+                target_x,
+                target_y,
+            )
+            dialog.move(target_x, target_y)
+            _LOGGER.debug(
+                "env-dialog moved pos=%s frameGeometry=%s",
+                dialog.pos(),
+                dialog.frameGeometry(),
+            )
+
+        QTimer.singleShot(0, _center_dialog)
+        dialog.exec()
+
+    def _clear_environment_overlay(self) -> None:
+        self._environment_overlay = None
+
+    def _show_environment_overlay(self, title: str, message: str) -> None:
+        if self._environment_overlay is not None:
+            self._environment_overlay.close()
+            self._environment_overlay = None
+
+        overlay = QWidget(self)
+        overlay.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        overlay.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        overlay.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        overlay.setStyleSheet("background-color: rgba(0, 0, 0, 0.25);")
+        overlay.setGeometry(self.rect())
+        overlay.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+        dialog_frame = QFrame(overlay)
+        dialog_frame.setStyleSheet(
+            ""
+            "background-color: #ffffff;"
+            "border: 1px solid #c0c0c0;"
+            "border-radius: 6px;"
+            ""
+        )
+        frame_layout = QVBoxLayout(dialog_frame)
+        frame_layout.setContentsMargins(12, 12, 12, 12)
+        frame_layout.setSpacing(10)
+
+        title_label = QLabel(title)
+        title_label.setStyleSheet("font-weight: 600;")
+        frame_layout.addWidget(title_label)
+
+        message_view = QPlainTextEdit()
+        message_view.setReadOnly(True)
+        message_view.setPlainText(message)
+        message_view.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+
+        metrics = QFontMetrics(message_view.font())
+        lines = message.splitlines() or [""]
+        max_line_width = max(metrics.horizontalAdvance(line) for line in lines)
+        width_padding = 80
+        min_width = 360
+        max_width = 900
+        title_width = title_label.sizeHint().width()
+        target_width = max(min_width, min(max_width, max(max_line_width, title_width) + width_padding))
+
+        visible_lines = min(len(lines), 12)
+        line_height = metrics.lineSpacing()
+        target_height = line_height * visible_lines + 24
+        message_view.setFixedHeight(target_height)
+        message_view.setMinimumWidth(target_width)
+
+        frame_layout.addWidget(message_view)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+        buttons.accepted.connect(overlay.close)
+        frame_layout.addWidget(buttons)
+
+        margins = frame_layout.contentsMargins()
+        spacing = frame_layout.spacing()
+        dialog_width = target_width + margins.left() + margins.right()
+        dialog_height = (
+            title_label.sizeHint().height()
+            + target_height
+            + buttons.sizeHint().height()
+            + margins.top()
+            + margins.bottom()
+            + spacing * 2
+        )
+        dialog_frame.setFixedSize(dialog_width, dialog_height)
+
+        parent_center = overlay.rect().center()
+        dialog_frame.move(
             parent_center.x() - (dialog_width // 2),
             parent_center.y() - (dialog_height // 2),
         )
 
-        dialog.exec()
+        overlay.destroyed.connect(self._clear_environment_overlay)
+        overlay.show()
+        overlay.raise_()
+        dialog_frame.raise_()
+        overlay.activateWindow()
+        overlay.setFocus()
+        self._environment_overlay = overlay
 
     def _apply_workspace(self, workspace: WorkspaceData) -> None:
         self._collection_tree.load_workspace_tree(
