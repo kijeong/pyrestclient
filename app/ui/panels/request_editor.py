@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from core.model import AuthConfig, AuthType, NetworkConfig, RequestData
+from core.model import AuthConfig, AuthType, NetworkConfig, RequestData, WorkspaceRequest
 
 METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"]
 AUTH_OPTIONS = ["No Auth", "Basic Auth", "Bearer Token"]
@@ -25,6 +25,8 @@ AUTH_OPTIONS = ["No Auth", "Basic Auth", "Bearer Token"]
 @dataclass(slots=True)
 class RequestTabWidgets:
     name: str
+    request_id: str
+    folder_id: str
     method_combo: QComboBox
     url_edit: QLineEdit
     timeout_spin: QSpinBox
@@ -50,6 +52,7 @@ class RequestEditorPanel(QWidget):
         self._request_tabs = QTabWidget()
         layout.addWidget(self._request_tabs)
         self._request_tab_data: list[RequestTabWidgets] = []
+        self._request_id_counter = 1
 
         self._request_tabs.addTab(
             self._build_request_tab(
@@ -70,7 +73,20 @@ class RequestEditorPanel(QWidget):
             "Create User",
         )
 
-    def _build_request_tab(self, name: str, method: str, url: str, body_text: str) -> QWidget:
+    def _build_request_tab(
+        self,
+        name: str,
+        method: str,
+        url: str,
+        body_text: str,
+        headers: list[tuple[str, str]] | None = None,
+        params: list[tuple[str, str]] | None = None,
+        auth: AuthConfig | None = None,
+        timeout_ms: int = 10000,
+        network: NetworkConfig | None = None,
+        request_id: str | None = None,
+        folder_id: str | None = None,
+    ) -> QWidget:
         container = QWidget()
         layout = QVBoxLayout(container)
 
@@ -86,7 +102,7 @@ class RequestEditorPanel(QWidget):
         timeout_label = QLabel("Timeout (ms)")
         timeout_spin = QSpinBox()
         timeout_spin.setRange(0, 600_000)
-        timeout_spin.setValue(10_000)
+        timeout_spin.setValue(timeout_ms)
 
         top_row.addWidget(method_combo)
         top_row.addWidget(url_edit, stretch=1)
@@ -95,13 +111,18 @@ class RequestEditorPanel(QWidget):
         layout.addLayout(top_row)
 
         editor_tabs = QTabWidget()
+        resolved_headers = headers or [
+            ("Accept", "application/json"),
+            ("Content-Type", "application/json"),
+        ]
         headers_table = self._create_key_value_table(
-            pairs=[("Accept", "application/json"), ("Content-Type", "application/json")],
+            pairs=resolved_headers,
             key_label="Header",
             value_label="Value",
         )
+        resolved_params = params or [("limit", "25"), ("offset", "0")]
         params_table = self._create_key_value_table(
-            pairs=[("limit", "25"), ("offset", "0")],
+            pairs=resolved_params,
             key_label="Param",
             value_label="Value",
         )
@@ -121,6 +142,17 @@ class RequestEditorPanel(QWidget):
         auth_token_edit = QLineEdit()
         auth_token_edit.setPlaceholderText("Bearer token")
 
+        resolved_auth = auth or AuthConfig.none()
+        if resolved_auth.auth_type is AuthType.BASIC:
+            auth_type_combo.setCurrentText("Basic Auth")
+            auth_user_edit.setText(resolved_auth.username)
+            auth_password_edit.setText(resolved_auth.password)
+        elif resolved_auth.auth_type is AuthType.BEARER:
+            auth_type_combo.setCurrentText("Bearer Token")
+            auth_token_edit.setText(resolved_auth.token)
+        else:
+            auth_type_combo.setCurrentText("No Auth")
+
         auth_layout.addRow(QLabel("Type"), auth_type_combo)
         auth_layout.addRow(QLabel("Username"), auth_user_edit)
         auth_layout.addRow(QLabel("Password"), auth_password_edit)
@@ -136,6 +168,12 @@ class RequestEditorPanel(QWidget):
         trust_env_check = QCheckBox("Trust Environment Proxies")
         trust_env_check.setChecked(True)
 
+        resolved_network = network or NetworkConfig()
+        proxy_edit.setText(resolved_network.proxy_url)
+        verify_ssl_check.setChecked(resolved_network.verify_ssl)
+        follow_redirects_check.setChecked(resolved_network.follow_redirects)
+        trust_env_check.setChecked(resolved_network.trust_env)
+
         network_layout.addRow(QLabel("Proxy URL"), proxy_edit)
         network_layout.addRow(verify_ssl_check)
         network_layout.addRow(follow_redirects_check)
@@ -148,9 +186,18 @@ class RequestEditorPanel(QWidget):
         editor_tabs.addTab(network_tab, "Network")
 
         layout.addWidget(editor_tabs)
+        resolved_request_id = request_id
+        if resolved_request_id is None or 0 == len(resolved_request_id):
+            resolved_request_id = f"req-{self._request_id_counter}"
+            self._request_id_counter += 1
+
+        resolved_folder_id = folder_id or "folder-1"
+
         self._request_tab_data.append(
             RequestTabWidgets(
                 name=name,
+                request_id=resolved_request_id,
+                folder_id=resolved_folder_id,
                 method_combo=method_combo,
                 url_edit=url_edit,
                 timeout_spin=timeout_spin,
@@ -191,6 +238,53 @@ class RequestEditorPanel(QWidget):
             ),
         )
         return request
+
+    def build_workspace_requests(self) -> list[WorkspaceRequest]:
+        requests: list[WorkspaceRequest] = []
+        for index, tab_data in enumerate(self._request_tab_data):
+            name = self._request_tabs.tabText(index)
+            requests.append(
+                WorkspaceRequest(
+                    id=tab_data.request_id,
+                    folder_id=tab_data.folder_id,
+                    name=name,
+                    method=tab_data.method_combo.currentText(),
+                    url=tab_data.url_edit.text().strip(),
+                    headers=self._collect_pairs(tab_data.headers_table),
+                    params=self._collect_pairs(tab_data.params_table),
+                    body=tab_data.body_editor.toPlainText(),
+                    auth=self._resolve_auth(tab_data),
+                    timeout_ms=int(tab_data.timeout_spin.value()),
+                    network=NetworkConfig(
+                        proxy_url=tab_data.proxy_edit.text().strip(),
+                        verify_ssl=tab_data.verify_ssl_check.isChecked(),
+                        follow_redirects=tab_data.follow_redirects_check.isChecked(),
+                        trust_env=tab_data.trust_env_check.isChecked(),
+                    ),
+                )
+            )
+        return requests
+
+    def load_workspace_requests(self, requests: list[WorkspaceRequest]) -> None:
+        self._request_tabs.clear()
+        self._request_tab_data = []
+        self._request_id_counter = len(requests) + 1
+
+        for request in requests:
+            tab_widget = self._build_request_tab(
+                name=request.name,
+                method=request.method,
+                url=request.url,
+                body_text=request.body,
+                headers=request.headers,
+                params=request.params,
+                auth=request.auth,
+                timeout_ms=request.timeout_ms,
+                network=request.network,
+                request_id=request.id,
+                folder_id=request.folder_id,
+            )
+            self._request_tabs.addTab(tab_widget, request.name)
 
     def _create_key_value_table(
         self,
