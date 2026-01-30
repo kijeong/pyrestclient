@@ -52,6 +52,9 @@ class RequestData:
     headers: list[tuple[str, str]] = field(default_factory=list)
     params: list[tuple[str, str]] = field(default_factory=list)
     body: str = ""
+    form_fields: list[tuple[str, str]] = field(default_factory=list)
+    files: list[tuple[str, str]] = field(default_factory=list)
+    body_type: str = "raw"  # raw, multipart
     auth: AuthConfig = field(default_factory=AuthConfig.none)
     timeout_ms: int = 10000
     network: NetworkConfig = field(default_factory=NetworkConfig)
@@ -103,6 +106,9 @@ class WorkspaceRequest:
     headers: list[tuple[str, str]] = field(default_factory=list)
     params: list[tuple[str, str]] = field(default_factory=list)
     body: str = ""
+    form_fields: list[tuple[str, str]] = field(default_factory=list)
+    files: list[tuple[str, str]] = field(default_factory=list)
+    body_type: str = "raw"  # raw, multipart
     auth: AuthConfig = field(default_factory=AuthConfig.none)
     timeout_ms: int = 10000
     network: NetworkConfig = field(default_factory=NetworkConfig)

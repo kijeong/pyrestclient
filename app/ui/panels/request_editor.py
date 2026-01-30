@@ -3,12 +3,16 @@ from dataclasses import dataclass
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QFileDialog,
     QFormLayout,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QPlainTextEdit,
+    QPushButton,
     QSpinBox,
+    QStackedWidget,
     QTabWidget,
     QTableWidget,
     QTableWidgetItem,
@@ -20,6 +24,7 @@ from core.model import AuthConfig, AuthType, HistoryEntry, NetworkConfig, Reques
 
 METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"]
 AUTH_OPTIONS = ["No Auth", "Basic Auth", "Bearer Token"]
+BODY_TYPES = ["Raw (Text/JSON)", "Multipart/Form-Data"]
 
 
 @dataclass(slots=True)
@@ -32,7 +37,10 @@ class RequestTabWidgets:
     timeout_spin: QSpinBox
     headers_table: QTableWidget
     params_table: QTableWidget
+    body_type_combo: QComboBox
+    body_stack: QStackedWidget
     body_editor: QPlainTextEdit
+    multipart_table: QTableWidget
     auth_type_combo: QComboBox
     auth_user_edit: QLineEdit
     auth_password_edit: QLineEdit
@@ -86,6 +94,9 @@ class RequestEditorPanel(QWidget):
         network: NetworkConfig | None = None,
         request_id: str | None = None,
         folder_id: str | None = None,
+        body_type: str = "raw",
+        form_fields: list[tuple[str, str]] | None = None,
+        files: list[tuple[str, str]] | None = None,
     ) -> QWidget:
         container = QWidget()
         layout = QVBoxLayout(container)
@@ -127,8 +138,41 @@ class RequestEditorPanel(QWidget):
             value_label="Value",
         )
 
+        # Body Tab Setup
+        body_tab_widget = QWidget()
+        body_layout = QVBoxLayout(body_tab_widget)
+        
+        body_type_layout = QHBoxLayout()
+        body_type_label = QLabel("Body Type:")
+        body_type_combo = QComboBox()
+        body_type_combo.addItems(BODY_TYPES)
+        
+        current_body_type_index = 0
+        if body_type == "multipart":
+            current_body_type_index = 1
+        body_type_combo.setCurrentIndex(current_body_type_index)
+        
+        body_type_layout.addWidget(body_type_label)
+        body_type_layout.addWidget(body_type_combo)
+        body_type_layout.addStretch()
+        body_layout.addLayout(body_type_layout)
+
+        body_stack = QStackedWidget()
+        
+        # 1. Raw Editor
         body_editor = QPlainTextEdit()
         body_editor.setPlainText(body_text)
+        body_stack.addWidget(body_editor)
+
+        # 2. Multipart Editor
+        multipart_table = self._create_multipart_table(form_fields or [], files or [])
+        body_stack.addWidget(multipart_table)
+
+        # Sync combo with stack
+        body_type_combo.currentIndexChanged.connect(body_stack.setCurrentIndex)
+        body_stack.setCurrentIndex(current_body_type_index)
+
+        body_layout.addWidget(body_stack)
 
         auth_tab = QWidget()
         auth_layout = QFormLayout(auth_tab)
@@ -181,7 +225,7 @@ class RequestEditorPanel(QWidget):
 
         editor_tabs.addTab(headers_table, "Headers")
         editor_tabs.addTab(params_table, "Params")
-        editor_tabs.addTab(body_editor, "Body")
+        editor_tabs.addTab(body_tab_widget, "Body")
         editor_tabs.addTab(auth_tab, "Auth")
         editor_tabs.addTab(network_tab, "Network")
 
@@ -203,7 +247,10 @@ class RequestEditorPanel(QWidget):
                 timeout_spin=timeout_spin,
                 headers_table=headers_table,
                 params_table=params_table,
+                body_type_combo=body_type_combo,
+                body_stack=body_stack,
                 body_editor=body_editor,
+                multipart_table=multipart_table,
                 auth_type_combo=auth_type_combo,
                 auth_user_edit=auth_user_edit,
                 auth_password_edit=auth_password_edit,
@@ -221,6 +268,12 @@ class RequestEditorPanel(QWidget):
         tab_data = self._request_tab_data[tab_index]
         name = self._request_tabs.tabText(tab_index)
 
+        body_type_str = "raw"
+        if tab_data.body_type_combo.currentIndex() == 1:
+            body_type_str = "multipart"
+
+        form_fields, files = self._collect_multipart_data(tab_data.multipart_table)
+
         request = RequestData(
             name=name,
             method=tab_data.method_combo.currentText(),
@@ -228,6 +281,9 @@ class RequestEditorPanel(QWidget):
             headers=self._collect_pairs(tab_data.headers_table),
             params=self._collect_pairs(tab_data.params_table),
             body=tab_data.body_editor.toPlainText(),
+            form_fields=form_fields,
+            files=files,
+            body_type=body_type_str,
             auth=self._resolve_auth(tab_data),
             timeout_ms=int(tab_data.timeout_spin.value()),
             network=NetworkConfig(
@@ -243,6 +299,13 @@ class RequestEditorPanel(QWidget):
         requests: list[WorkspaceRequest] = []
         for index, tab_data in enumerate(self._request_tab_data):
             name = self._request_tabs.tabText(index)
+            
+            body_type_str = "raw"
+            if tab_data.body_type_combo.currentIndex() == 1:
+                body_type_str = "multipart"
+            
+            form_fields, files = self._collect_multipart_data(tab_data.multipart_table)
+
             requests.append(
                 WorkspaceRequest(
                     id=tab_data.request_id,
@@ -253,6 +316,9 @@ class RequestEditorPanel(QWidget):
                     headers=self._collect_pairs(tab_data.headers_table),
                     params=self._collect_pairs(tab_data.params_table),
                     body=tab_data.body_editor.toPlainText(),
+                    form_fields=form_fields,
+                    files=files,
+                    body_type=body_type_str,
                     auth=self._resolve_auth(tab_data),
                     timeout_ms=int(tab_data.timeout_spin.value()),
                     network=NetworkConfig(
@@ -283,6 +349,9 @@ class RequestEditorPanel(QWidget):
                 network=request.network,
                 request_id=request.id,
                 folder_id=request.folder_id,
+                body_type=request.body_type,
+                form_fields=request.form_fields,
+                files=request.files,
             )
             self._request_tabs.addTab(tab_widget, request.name)
 
@@ -304,6 +373,8 @@ class RequestEditorPanel(QWidget):
         tab_data.method_combo.setCurrentText(entry.method)
         tab_data.url_edit.setText(entry.url)
         self._request_tabs.setTabText(tab_index, entry.name)
+        # Note: History currently doesn't persist full body/files, so we don't clear/set them here to avoid data loss on simple history click.
+        # Ideally history should store full request data.
 
     def _create_key_value_table(
         self,
@@ -323,6 +394,123 @@ class RequestEditorPanel(QWidget):
 
         table.horizontalHeader().setStretchLastSection(True)
         return table
+
+    def _create_multipart_table(
+        self,
+        form_fields: list[tuple[str, str]],
+        files: list[tuple[str, str]],
+    ) -> QTableWidget:
+        table = QTableWidget()
+        table.setColumnCount(4)
+        table.setHorizontalHeaderLabels(["Key", "Type", "Value", "Action"])
+        table.verticalHeader().setVisible(False)
+        
+        # Merge lists for display
+        rows = []
+        for k, v in form_fields:
+            rows.append((k, "Text", v))
+        for k, v in files:
+            rows.append((k, "File", v))
+            
+        table.setRowCount(len(rows) + 5) # Extra empty rows
+
+        for i in range(table.rowCount()):
+            key, type_val, val = "", "Text", ""
+            if i < len(rows):
+                key, type_val, val = rows[i]
+            
+            # Key
+            table.setItem(i, 0, QTableWidgetItem(key))
+            
+            # Type Combo
+            combo = QComboBox()
+            combo.addItems(["Text", "File"])
+            combo.setCurrentText(type_val)
+            table.setCellWidget(i, 1, combo)
+            
+            # Value
+            table.setItem(i, 2, QTableWidgetItem(val))
+            
+            # Action Button (Browse)
+            btn = QPushButton("Browse...")
+            # Use lambda with default arg to capture current row index? 
+            # No, row index in loop is not reliable if rows change, but here initialization is static.
+            # Better to connect to a handler that finds the button's position.
+            btn.clicked.connect(lambda checked=False, r=i: self._on_browse_file(table, r))
+            if type_val == "Text":
+                btn.setVisible(False)
+            table.setCellWidget(i, 3, btn)
+            
+            # Connect combo change to show/hide button
+            combo.currentTextChanged.connect(lambda text, r=i: self._on_multipart_type_changed(table, r, text))
+
+        header = table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        
+        return table
+
+    def _on_browse_file(self, table: QTableWidget, row: int) -> None:
+        # Re-verify row in case of shifts (though here we don't delete rows yet)
+        # Actually, capturing 'i' in lambda is risky if rows are inserted/deleted.
+        # But for this simple implementation where we pre-allocate, it's okay-ish.
+        # Better approach: `table.indexAt(btn.pos()).row()`
+        sender = self.sender()
+        if not isinstance(sender, QWidget):
+            return
+            
+        # Find row from button position
+        # This is more robust than capturing index
+        index = table.indexAt(sender.pos())
+        if not index.isValid():
+             # Fallback if button is the sender
+             pass
+        else:
+             row = index.row()
+
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select File")
+        if file_path:
+            table.setItem(row, 2, QTableWidgetItem(file_path))
+
+    def _on_multipart_type_changed(self, table: QTableWidget, row: int, text: str) -> None:
+        # Find row from sender combo
+        sender = self.sender()
+        if isinstance(sender, QWidget):
+             index = table.indexAt(sender.pos())
+             if index.isValid():
+                 row = index.row()
+        
+        btn = table.cellWidget(row, 3)
+        if btn:
+            btn.setVisible(text == "File")
+            
+    def _collect_multipart_data(self, table: QTableWidget) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
+        form_fields = []
+        files = []
+        
+        for row in range(table.rowCount()):
+            key_item = table.item(row, 0)
+            if not key_item or not key_item.text().strip():
+                continue
+            
+            key = key_item.text().strip()
+            
+            type_widget = table.cellWidget(row, 1)
+            type_val = "Text"
+            if isinstance(type_widget, QComboBox):
+                type_val = type_widget.currentText()
+                
+            val_item = table.item(row, 2)
+            val = val_item.text().strip() if val_item else ""
+            
+            if type_val == "File":
+                files.append((key, val))
+            else:
+                form_fields.append((key, val))
+                
+        return form_fields, files
 
     @staticmethod
     def _collect_pairs(table: QTableWidget) -> list[tuple[str, str]]:

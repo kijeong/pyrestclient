@@ -175,6 +175,23 @@
 
 ---
 
+### M10: 파일 업로드 요청 (new_feature)
+**작업 항목**
+- 데이터 모델 확장: 파일 경로 필드 추가
+- UI 개선: Request Body 탭에 Multipart/Form-data 모드 및 파일 선택기 추가
+- Core 구현: `httpx` 파일 전송 연동 및 예외 처리
+
+**산출물**
+- 파일 업로드 기능 상세 계획 (`docs/260130_new_feature_file_upload.md`)
+- UI 변경 설계안
+
+**완료 확인 방법**
+- Body 탭에서 'Multipart' 모드 선택 및 파일 지정 가능 여부 확인
+- 전송 시 `Content-Type: multipart/form-data` 자동 설정 확인
+- 실제 전송 및 워크스페이스 저장/로드 시 경로 유지 확인
+
+---
+
 ## 5) 차기 작업 제안 (문서 확장)
 - Import/Export 요구사항(예: Postman/Insomnia 변환) 문서화
 - 인증서/프록시 고급 옵션 범위 확정

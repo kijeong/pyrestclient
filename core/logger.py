@@ -17,7 +17,7 @@ def configure_logging(log_path: Path | None = None, level: int = logging.INFO) -
     log_file.parent.mkdir(parents=True, exist_ok=True)
 
     formatter = logging.Formatter(
-        fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        fmt="%(asctime)s | %(levelname)s | %(name)s | %(filename)s:%(lineno)d | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
