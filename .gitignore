@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+.venv/
+venv/
+env/
+
+# Distribution / Build
+build/
+dist/
+*.spec
+
+# PyInstaller
+*.manifest
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local Environment
+.env
+
+# Application Runtime Data
+history.jsonl
+history_test.jsonl
+
+# Local Workspaces (Exclude specific local test files, keep generic ones if needed)
+workspace*.json
+# Uncomment below if you want to ignore all json workspaces locally
+# *.json
+# !package.json
