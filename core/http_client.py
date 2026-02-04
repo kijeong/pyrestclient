@@ -86,6 +86,33 @@ class HttpClient:
                 content = body_text if 0 < len(body_text.strip()) else None
                 request_kwargs["content"] = content
 
+            # --- Debug Logging ---
+            logger.debug("=== Request Details ===")
+            logger.debug(f"Method: {request.method}")
+            logger.debug(f"URL: {request.url}")
+            
+            if request_kwargs.get("params"):
+                logger.debug(f"Params: {request_kwargs['params']}")
+            
+            if request_kwargs.get("headers"):
+                logger.debug(f"Headers: {request_kwargs['headers']}")
+            
+            if request_kwargs.get("content"):
+                logger.debug(f"Body (Raw): {request_kwargs['content']}")
+            
+            if request_kwargs.get("data"):
+                logger.debug(f"Body (Form Data): {request_kwargs['data']}")
+            
+            if request_kwargs.get("files"):
+                # files is list of (key, (filename, stream))
+                files_log = []
+                for key, val in request_kwargs["files"]:
+                    filename = val[0] if isinstance(val, tuple) and len(val) > 0 else "unknown"
+                    files_log.append(f"{key}: {filename}")
+                logger.debug(f"Body (Files): {files_log}")
+            logger.debug("=======================")
+            # ---------------------
+
             if client is None:
                 response = httpx.request(
                     request.method,
