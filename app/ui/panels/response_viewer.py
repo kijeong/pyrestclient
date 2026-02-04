@@ -1,3 +1,4 @@
+import json
 from core.model import HistoryEntry, ResponseData
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -50,7 +51,15 @@ class ResponseViewerPanel(QWidget):
     def set_response(self, response: ResponseData) -> None:
         self._status_label.setText(f"Status: {response.status_code}")
         self._time_label.setText(f"Time: {response.elapsed_ms} ms")
-        self._body_view.setPlainText(response.body)
+        
+        display_body = response.body
+        try:
+            parsed = json.loads(display_body)
+            display_body = json.dumps(parsed, indent=4, ensure_ascii=False)
+        except (json.JSONDecodeError, TypeError):
+            pass
+            
+        self._body_view.setPlainText(display_body)
         self._headers_view.setPlainText(self._format_headers(response.headers))
 
     def set_canceled(self) -> None:
