@@ -453,22 +453,12 @@ class RequestEditorPanel(QWidget):
         return table
 
     def _on_browse_file(self, table: QTableWidget, row: int) -> None:
-        # Re-verify row in case of shifts (though here we don't delete rows yet)
-        # Actually, capturing 'i' in lambda is risky if rows are inserted/deleted.
-        # But for this simple implementation where we pre-allocate, it's okay-ish.
-        # Better approach: `table.indexAt(btn.pos()).row()`
+        # Try to determine row dynamically from sender position for robustness
         sender = self.sender()
-        if not isinstance(sender, QWidget):
-            return
-            
-        # Find row from button position
-        # This is more robust than capturing index
-        index = table.indexAt(sender.pos())
-        if not index.isValid():
-             # Fallback if button is the sender
-             pass
-        else:
-             row = index.row()
+        if isinstance(sender, QWidget):
+            index = table.indexAt(sender.pos())
+            if index.isValid():
+                row = index.row()
 
         file_path, _ = QFileDialog.getOpenFileName(self, "Select File")
         if file_path:
