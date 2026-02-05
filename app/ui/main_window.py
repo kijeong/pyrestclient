@@ -1,7 +1,8 @@
 import datetime
+import os
 
-from PySide6.QtCore import QPoint, Qt, QTimer
-from PySide6.QtGui import QFontMetrics, QGuiApplication
+from PySide6.QtCore import QPoint, Qt, QTimer, QSettings
+from PySide6.QtGui import QFontMetrics, QGuiApplication, QCloseEvent
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -73,6 +74,55 @@ class MainWindow(QMainWindow):
         self._init_toolbar()
         self._init_layout()
         self._connect_signals()
+        self._init_workspace()
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        if self._workspace_path:
+            try:
+                save_workspace(self._workspace_path, self._build_workspace())
+                _LOGGER.info(f"Auto-saved workspace to {self._workspace_path}")
+            except Exception as e:
+                _LOGGER.error(f"Failed to auto-save workspace: {e}")
+                # We don't block exit on save failure, but logging is good.
+
+        settings = QSettings()
+        if self._workspace_path:
+            settings.setValue("last_workspace", self._workspace_path)
+        
+        event.accept()
+
+    def _init_workspace(self) -> None:
+        settings = QSettings()
+        last_path = settings.value("last_workspace")
+        
+        target_path = last_path
+        
+        # If no last path or file doesn't exist, fallback to default in CWD
+        if not target_path or not isinstance(target_path, str) or not os.path.exists(target_path):
+            target_path = os.path.abspath("workspace.json")
+        
+        if os.path.exists(target_path):
+            try:
+                workspace = load_workspace(target_path)
+                self._apply_workspace(workspace)
+                self._workspace_path = target_path
+                self._show_notification(f"Workspace loaded: {os.path.basename(target_path)}")
+                return
+            except Exception as e:
+                _LOGGER.error(f"Failed to load workspace {target_path}: {e}")
+                # Proceed to overwrite/create if it was invalid? 
+                # Better to be safe and maybe create a new name or just use current default state.
+                # If specifically requested "save initial workspace if none exists", we might proceed.
+        
+        # If file doesn't exist (or failed load? no, safe to keep current state if load failed to avoid dataloss overwriting)
+        # If file doesn't exist, save initial state.
+        if not os.path.exists(target_path):
+            try:
+                save_workspace(target_path, self._build_workspace())
+                self._workspace_path = target_path
+                self._show_notification(f"New workspace created: {os.path.basename(target_path)}")
+            except Exception as e:
+                _LOGGER.error(f"Failed to create initial workspace {target_path}: {e}")
 
     def _init_menu(self) -> None:
         file_menu = QMenu("File", self)

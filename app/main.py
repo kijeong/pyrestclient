@@ -27,6 +27,9 @@ def main() -> None:
     sys.excepthook = _handle_exception
 
     app = QApplication([])
+    app.setOrganizationName("Jiran")
+    app.setApplicationName("RestClient")
+    
     window = MainWindow()
     window.show()
     app.exec()
