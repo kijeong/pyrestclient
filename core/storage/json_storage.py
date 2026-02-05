@@ -290,6 +290,9 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
 
 
 def _fsync_directory(path: Path) -> None:
+    if not hasattr(os, "O_DIRECTORY"):
+        return
+
     try:
         dir_fd = os.open(path, os.O_DIRECTORY)
     except OSError:

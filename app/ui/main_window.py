@@ -178,6 +178,7 @@ class MainWindow(QMainWindow):
 
     def _init_toolbar(self) -> None:
         toolbar = QToolBar("Main")
+        toolbar.setObjectName("MainToolBar")
         toolbar.setMovable(False)
 
         self._send_button = QPushButton("Send")
