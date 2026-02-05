@@ -1,7 +1,7 @@
 import datetime
 import os
 
-from PySide6.QtCore import QPoint, Qt, QTimer, QSettings
+from PySide6.QtCore import QPoint, Qt, QTimer
 from PySide6.QtGui import QFontMetrics, QGuiApplication, QCloseEvent
 from PySide6.QtWidgets import (
     QComboBox,
@@ -27,6 +27,7 @@ from app.ui.panels.request_editor import RequestEditorPanel
 from app.ui.panels.response_viewer import ResponseViewerPanel
 from core.http_client import HttpClient
 from core.logger import get_logger
+from core.settings import AppSettings
 from core.model import (
     EnvironmentScope,
     HistoryEntry,
@@ -85,14 +86,14 @@ class MainWindow(QMainWindow):
                 _LOGGER.error(f"Failed to auto-save workspace: {e}")
                 # We don't block exit on save failure, but logging is good.
 
-        settings = QSettings()
+        settings = AppSettings()
         if self._workspace_path:
             settings.setValue("last_workspace", self._workspace_path)
         
         event.accept()
 
     def _init_workspace(self) -> None:
-        settings = QSettings()
+        settings = AppSettings()
         last_path = settings.value("last_workspace")
         
         target_path = last_path
