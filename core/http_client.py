@@ -36,6 +36,17 @@ class HttpClient:
         headers = self._normalize_pairs(request.headers)
         params = self._normalize_pairs(request.params)
 
+        # Set default User-Agent if not present
+        if not any(key.lower() == "user-agent" for key, _ in headers):
+            headers.append(("User-Agent", "jiran-restclient"))
+
+        # For multipart requests, remove Content-Type header so httpx can set it with boundary
+        if request.body_type == "multipart":
+            headers_count = len(headers)
+            headers = [h for h in headers if h[0].lower() != "content-type"]
+            if len(headers) < headers_count:
+                logger.debug("Removed explicit Content-Type header for multipart request")
+
         auth = None
         if request.auth.auth_type is AuthType.BASIC:
             auth = httpx.BasicAuth(request.auth.username, request.auth.password)
@@ -66,8 +77,9 @@ class HttpClient:
                         file_path = Path(path_str)
                         # Open file and register for closing
                         f = stack.enter_context(open(file_path, "rb"))
-                        # (filename, file_object)
-                        files_payload.append((key, (file_path.name, f)))
+                        content = f.read()
+                        # (filename, content)
+                        files_payload.append((key, (file_path.name, content)))
                     except OSError as e:
                         logger.error(f"Failed to open file '{path_str}': {e}")
                         # We might want to stop here or proceed. 
@@ -79,7 +91,9 @@ class HttpClient:
                 data_payload = request.form_fields
                 
                 request_kwargs["files"] = files_payload
-                request_kwargs["data"] = data_payload
+                if data_payload:
+                    request_kwargs["data"] = data_payload
+                
             else:
                 # Raw body
                 body_text = request.body
