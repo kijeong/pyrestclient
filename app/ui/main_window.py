@@ -110,11 +110,14 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent) -> None:
         # Save Window State
         try:
-            self._settings.setValue("window_geometry", self.saveGeometry().toHex().data().decode("utf-8"))
-            self._settings.setValue("window_state", self.saveState().toHex().data().decode("utf-8"))
-            self._settings.setValue("ui_main_splitter", self._main_splitter.saveState().toHex().data().decode("utf-8"))
-            self._settings.setValue("ui_left_splitter", self._left_splitter.saveState().toHex().data().decode("utf-8"))
-            self._settings.setValue("ui_right_splitter", self._right_splitter.saveState().toHex().data().decode("utf-8"))
+            window_settings = {
+                "geometry": self.saveGeometry().toHex().data().decode("utf-8"),
+                "state": self.saveState().toHex().data().decode("utf-8"),
+                "ui_main_splitter": self._main_splitter.saveState().toHex().data().decode("utf-8"),
+                "ui_left_splitter": self._left_splitter.saveState().toHex().data().decode("utf-8"),
+                "ui_right_splitter": self._right_splitter.saveState().toHex().data().decode("utf-8"),
+            }
+            self._settings.setValue("window", window_settings)
         except Exception as e:
             _LOGGER.error(f"Failed to save window state: {e}")
 
@@ -250,23 +253,27 @@ class MainWindow(QMainWindow):
 
     def _restore_window_state(self) -> None:
         try:
-            geometry = self._settings.value("window_geometry")
+            window_settings = self._settings.value("window")
+            if not isinstance(window_settings, dict):
+                return
+
+            geometry = window_settings.get("geometry")
             if geometry:
                 self.restoreGeometry(QByteArray.fromHex(geometry.encode("utf-8")))
             
-            state = self._settings.value("window_state")
+            state = window_settings.get("state")
             if state:
                 self.restoreState(QByteArray.fromHex(state.encode("utf-8")))
 
-            main_splitter_state = self._settings.value("ui_main_splitter")
+            main_splitter_state = window_settings.get("ui_main_splitter")
             if main_splitter_state:
                 self._main_splitter.restoreState(QByteArray.fromHex(main_splitter_state.encode("utf-8")))
             
-            left_splitter_state = self._settings.value("ui_left_splitter")
+            left_splitter_state = window_settings.get("ui_left_splitter")
             if left_splitter_state:
                 self._left_splitter.restoreState(QByteArray.fromHex(left_splitter_state.encode("utf-8")))
             
-            right_splitter_state = self._settings.value("ui_right_splitter")
+            right_splitter_state = window_settings.get("ui_right_splitter")
             if right_splitter_state:
                 self._right_splitter.restoreState(QByteArray.fromHex(right_splitter_state.encode("utf-8")))
         except Exception as e:
