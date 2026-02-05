@@ -26,7 +26,7 @@ def append_history_entry(path: str | Path, entry: HistoryEntry) -> None:
             logger.exception("Failed to fsync history file")
 
 
-def load_history_entries(path: str | Path) -> list[HistoryEntry]:
+def load_history_entries(path: str | Path, limit: int | None = None) -> list[HistoryEntry]:
     target_path = Path(path)
     if not target_path.exists():
         return []
@@ -42,6 +42,9 @@ def load_history_entries(path: str | Path) -> list[HistoryEntry]:
                 entries.append(_history_from_dict(payload))
             except Exception:
                 logger.exception("Failed to parse history line %s", line_number)
+    
+    if limit is not None and limit > 0:
+        return entries[-limit:]
     return entries
 
 

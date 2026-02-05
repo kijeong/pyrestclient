@@ -74,6 +74,12 @@ class ResponseViewerPanel(QWidget):
         self._body_view.setPlainText(message)
         self._headers_view.setPlainText("")
 
+    def set_font_size(self, size: int) -> None:
+        font = self._body_view.font()
+        font.setPointSize(size)
+        self._body_view.setFont(font)
+        self._headers_view.setFont(font)
+
     def set_history_entry(self, entry: HistoryEntry) -> None:
         status_text = "--"
         if entry.error:

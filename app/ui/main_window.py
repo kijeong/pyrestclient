@@ -1,7 +1,7 @@
 import datetime
 import os
 
-from PySide6.QtCore import QPoint, Qt, QTimer
+from PySide6.QtCore import QByteArray, QPoint, Qt, QTimer
 from PySide6.QtGui import QFontMetrics, QGuiApplication, QCloseEvent
 from PySide6.QtWidgets import (
     QComboBox,
@@ -55,13 +55,42 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("REST Client Prototype")
         self.resize(1200, 800)
 
+        self._settings = AppSettings()
+        
+        # Load Settings
+        try:
+            self._default_timeout_ms = int(self._settings.value("default_timeout_ms", 10000))
+        except (ValueError, TypeError):
+            self._default_timeout_ms = 10000
+        if self._settings.value("default_timeout_ms") is None:
+             self._settings.setValue("default_timeout_ms", 10000)
+
+        try:
+            self._history_max_items = int(self._settings.value("history_max_items", 100))
+        except (ValueError, TypeError):
+            self._history_max_items = 100
+        if self._settings.value("history_max_items") is None:
+             self._settings.setValue("history_max_items", 100)
+             
+        try:
+            self._editor_font_size = int(self._settings.value("editor_font_size", 12))
+        except (ValueError, TypeError):
+            self._editor_font_size = 12
+        if self._settings.value("editor_font_size") is None:
+             self._settings.setValue("editor_font_size", 12)
+
         self._environments = self._build_environments()
         self._collection_tree = CollectionTreePanel()
         self._collection_tree.setMinimumWidth(240)
         self._history_panel = HistoryPanel()
         self._request_editor = RequestEditorPanel()
         self._response_viewer = ResponseViewerPanel()
-        self._http_client = HttpClient()
+        
+        # Apply Font Size
+        self._request_editor.set_font_size(self._editor_font_size)
+        self._response_viewer.set_font_size(self._editor_font_size)
+
+        self._http_client = HttpClient(default_timeout_ms=self._default_timeout_ms)
         self._current_worker: RequestWorker | None = None
         self._workspace_path: str | None = None
         self._history_path = default_history_path()
@@ -74,10 +103,21 @@ class MainWindow(QMainWindow):
         self._init_menu()
         self._init_toolbar()
         self._init_layout()
+        self._restore_window_state()
         self._connect_signals()
         self._init_workspace()
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        # Save Window State
+        try:
+            self._settings.setValue("window_geometry", self.saveGeometry().toHex().data().decode("utf-8"))
+            self._settings.setValue("window_state", self.saveState().toHex().data().decode("utf-8"))
+            self._settings.setValue("ui_main_splitter", self._main_splitter.saveState().toHex().data().decode("utf-8"))
+            self._settings.setValue("ui_left_splitter", self._left_splitter.saveState().toHex().data().decode("utf-8"))
+            self._settings.setValue("ui_right_splitter", self._right_splitter.saveState().toHex().data().decode("utf-8"))
+        except Exception as e:
+            _LOGGER.error(f"Failed to save window state: {e}")
+
         if self._workspace_path:
             try:
                 save_workspace(self._workspace_path, self._build_workspace())
@@ -165,24 +205,24 @@ class MainWindow(QMainWindow):
         self._history_panel.entry_selected.connect(self._on_history_selected)
 
     def _init_layout(self) -> None:
-        main_splitter = QSplitter(orientation=Qt.Orientation.Horizontal)
-        left_splitter = QSplitter(orientation=Qt.Orientation.Vertical)
-        right_splitter = QSplitter(orientation=Qt.Orientation.Vertical)
+        self._main_splitter = QSplitter(orientation=Qt.Orientation.Horizontal)
+        self._left_splitter = QSplitter(orientation=Qt.Orientation.Vertical)
+        self._right_splitter = QSplitter(orientation=Qt.Orientation.Vertical)
 
-        left_splitter.addWidget(self._collection_tree)
-        left_splitter.addWidget(self._history_panel)
-        left_splitter.setStretchFactor(0, 3)
-        left_splitter.setStretchFactor(1, 2)
+        self._left_splitter.addWidget(self._collection_tree)
+        self._left_splitter.addWidget(self._history_panel)
+        self._left_splitter.setStretchFactor(0, 3)
+        self._left_splitter.setStretchFactor(1, 2)
 
-        right_splitter.addWidget(self._request_editor)
-        right_splitter.addWidget(self._response_viewer)
-        right_splitter.setStretchFactor(0, 3)
-        right_splitter.setStretchFactor(1, 2)
+        self._right_splitter.addWidget(self._request_editor)
+        self._right_splitter.addWidget(self._response_viewer)
+        self._right_splitter.setStretchFactor(0, 3)
+        self._right_splitter.setStretchFactor(1, 2)
 
-        main_splitter.addWidget(left_splitter)
-        main_splitter.addWidget(right_splitter)
-        main_splitter.setStretchFactor(0, 1)
-        main_splitter.setStretchFactor(1, 3)
+        self._main_splitter.addWidget(self._left_splitter)
+        self._main_splitter.addWidget(self._right_splitter)
+        self._main_splitter.setStretchFactor(0, 1)
+        self._main_splitter.setStretchFactor(1, 3)
 
         central_widget = QWidget()
         layout = QVBoxLayout(central_widget)
@@ -203,10 +243,34 @@ class MainWindow(QMainWindow):
             ""
         )
         layout.addWidget(self._notification_banner)
-        layout.addWidget(main_splitter)
+        layout.addWidget(self._main_splitter)
 
         self.setCentralWidget(central_widget)
         self._load_history_entries()
+
+    def _restore_window_state(self) -> None:
+        try:
+            geometry = self._settings.value("window_geometry")
+            if geometry:
+                self.restoreGeometry(QByteArray.fromHex(geometry.encode("utf-8")))
+            
+            state = self._settings.value("window_state")
+            if state:
+                self.restoreState(QByteArray.fromHex(state.encode("utf-8")))
+
+            main_splitter_state = self._settings.value("ui_main_splitter")
+            if main_splitter_state:
+                self._main_splitter.restoreState(QByteArray.fromHex(main_splitter_state.encode("utf-8")))
+            
+            left_splitter_state = self._settings.value("ui_left_splitter")
+            if left_splitter_state:
+                self._left_splitter.restoreState(QByteArray.fromHex(left_splitter_state.encode("utf-8")))
+            
+            right_splitter_state = self._settings.value("ui_right_splitter")
+            if right_splitter_state:
+                self._right_splitter.restoreState(QByteArray.fromHex(right_splitter_state.encode("utf-8")))
+        except Exception as e:
+            _LOGGER.error(f"Failed to restore window state: {e}")
 
     def _on_send_clicked(self) -> None:
         request = self._request_editor.build_request()
@@ -553,7 +617,7 @@ class MainWindow(QMainWindow):
 
     def _load_history_entries(self) -> None:
         try:
-            entries = load_history_entries(self._history_path)
+            entries = load_history_entries(self._history_path, limit=self._history_max_items)
         except Exception as exc:
             QMessageBox.warning(self, "History", f"History 로드 실패: {exc}")
             return

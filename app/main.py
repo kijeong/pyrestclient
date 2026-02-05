@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 
 from app.ui.main_window import MainWindow
 from core.logger import configure_logging, get_logger
+from core.settings import AppSettings
 
 
 def _handle_exception(exc_type: type[BaseException], exc: BaseException, tb: object) -> None:
@@ -23,7 +24,35 @@ def _handle_exception(exc_type: type[BaseException], exc: BaseException, tb: obj
 
 
 def main() -> None:
-    configure_logging(level=logging.DEBUG)
+    settings = AppSettings()
+    
+    # Configure logging
+    log_level_str = settings.value("log_level")
+    if not log_level_str:
+        log_level_str = "DEBUG"
+        settings.setValue("log_level", log_level_str)
+
+    log_path_str = settings.value("log_path")
+    if log_path_str is None:
+        # Default to empty string to indicate "use default path", but ensure key exists in JSON
+        settings.setValue("log_path", "")
+        log_path_str = ""
+
+    # Resolve log level
+    log_level = logging.DEBUG
+    if isinstance(log_level_str, str):
+        level_upper = log_level_str.upper()
+        # logging.getLevelName returns int for string input (in most cases) or we can use getattr
+        # Ideally use getattr to be safe with constants
+        log_level = getattr(logging, level_upper, logging.DEBUG)
+    elif isinstance(log_level_str, int):
+        log_level = log_level_str
+        
+    from pathlib import Path
+    log_path = Path(log_path_str) if log_path_str else None
+    
+    configure_logging(log_path=log_path, level=log_level)
+    
     sys.excepthook = _handle_exception
 
     app = QApplication([])

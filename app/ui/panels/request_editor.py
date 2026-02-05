@@ -162,6 +162,10 @@ class RequestEditorPanel(QWidget):
         # 1. Raw Editor
         body_editor = QPlainTextEdit()
         body_editor.setPlainText(body_text)
+        if hasattr(self, "_current_font_size"):
+             font = body_editor.font()
+             font.setPointSize(self._current_font_size)
+             body_editor.setFont(font)
         body_stack.addWidget(body_editor)
 
         # 2. Multipart Editor
@@ -354,6 +358,17 @@ class RequestEditorPanel(QWidget):
                 files=request.files,
             )
             self._request_tabs.addTab(tab_widget, request.name)
+        
+        # Re-apply font size to all new tabs if set
+        if hasattr(self, "_current_font_size"):
+             self.set_font_size(self._current_font_size)
+
+    def set_font_size(self, size: int) -> None:
+        self._current_font_size = size
+        for tab_data in self._request_tab_data:
+            font = tab_data.body_editor.font()
+            font.setPointSize(size)
+            tab_data.body_editor.setFont(font)
 
     def apply_history_entry(self, entry: HistoryEntry) -> None:
         if 0 == self._request_tabs.count():
