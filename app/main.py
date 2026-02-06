@@ -5,6 +5,7 @@ import sys
 import traceback
 from pathlib import Path
 
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from app.ui.main_window import MainWindow
@@ -60,6 +61,12 @@ def main() -> None:
     app = QApplication([])
     app.setOrganizationName("Jiran")
     app.setApplicationName("RestClient")
+    
+    # Set Window Icon
+    base_dir = Path(__file__).resolve().parent.parent
+    icon_path = base_dir / "resources" / "icons" / "app_icon.svg"
+    if icon_path.exists():
+        app.setWindowIcon(QIcon(str(icon_path)))
     
     window = MainWindow()
     window.show()
