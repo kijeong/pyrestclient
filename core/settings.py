@@ -1,4 +1,5 @@
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -14,7 +15,17 @@ class AppSettings:
     """
 
     def __init__(self, filename: str = "settings.json") -> None:
-        self._conf_dir = Path.cwd() / "conf"
+        if getattr(sys, "frozen", False):
+            # If frozen, store settings relative to the executable (or _internal)
+            # For robustness, let's use the executable dir's parent if it's in a subfolder,
+            # but usually for one-dir builds, executable is in the root of dist/app.
+            # safe option: sys.executable directory
+            base_path = Path(sys.executable).parent
+        else:
+            # If source, use project root (parent of core/)
+            base_path = Path(__file__).resolve().parent.parent
+
+        self._conf_dir = base_path / "conf"
         self._settings_path = self._conf_dir / filename
         self._data: dict[str, Any] = {}
         self._load()

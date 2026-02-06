@@ -5,6 +5,8 @@ import sys
 import traceback
 from pathlib import Path
 
+# Import QtSvg to ensure SVG image format plugins are included by PyInstaller
+import PySide6.QtSvg  # noqa: F401
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMessageBox
 
@@ -28,17 +30,38 @@ def _handle_exception(exc_type: type[BaseException], exc: BaseException, tb: obj
 def main() -> None:
     settings = AppSettings()
     
+    # Resolve base directory
+    if getattr(sys, 'frozen', False):
+        # If the application is run as a bundle, the PyInstaller bootloader
+        # extends the sys module by a flag frozen=True.
+        base_dir = Path(sys.executable).parent
+        if hasattr(sys, "_MEIPASS"):
+            # Onefile mode
+            base_dir = Path(sys._MEIPASS)
+        elif (base_dir / "_internal").exists():
+            # Onedir mode (PyInstaller >= 6.0)
+            base_dir = base_dir / "_internal"
+    else:
+        base_dir = Path(__file__).resolve().parent.parent
+
     # Configure logging
     log_level_str = settings.value("log_level")
     if not log_level_str:
         log_level_str = "DEBUG"
         settings.setValue("log_level", log_level_str)
-
+    
     log_path_str = settings.value("log_path")
     if not log_path_str:
         # Default to installed path/logs/rest_client.log
-        base_dir = Path(__file__).resolve().parent.parent
         log_path_default = base_dir / "logs" / "rest_client.log"
+        # Ensure log directory exists
+        try:
+            log_path_default.parent.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            # Fallback to user home if write permission fails
+            log_path_default = Path.home() / ".rest_client" / "logs" / "rest_client.log"
+            log_path_default.parent.mkdir(parents=True, exist_ok=True)
+            
         log_path_str = str(log_path_default)
         settings.setValue("log_path", log_path_str)
 
@@ -46,8 +69,6 @@ def main() -> None:
     log_level = logging.DEBUG
     if isinstance(log_level_str, str):
         level_upper = log_level_str.upper()
-        # logging.getLevelName returns int for string input (in most cases) or we can use getattr
-        # Ideally use getattr to be safe with constants
         log_level = getattr(logging, level_upper, logging.DEBUG)
     elif isinstance(log_level_str, int):
         log_level = log_level_str
@@ -56,6 +77,10 @@ def main() -> None:
     
     configure_logging(log_path=log_path, level=log_level)
     
+    logger = get_logger("app")
+    logger.debug(f"Base directory: {base_dir}")
+    logger.debug(f"Frozen state: {getattr(sys, 'frozen', False)}")
+    
     sys.excepthook = _handle_exception
 
     app = QApplication([])
@@ -63,10 +88,18 @@ def main() -> None:
     app.setApplicationName("RestClient")
     
     # Set Window Icon
-    base_dir = Path(__file__).resolve().parent.parent
-    icon_path = base_dir / "resources" / "icons" / "app_icon.svg"
+    # Prefer PNG for window icon as it has better default support in Qt without plugins
+    icon_path = base_dir / "resources" / "icons" / "app_icon.png"
+    if not icon_path.exists():
+         # Fallback to ICO if PNG missing
+         icon_path = base_dir / "resources" / "icons" / "app_icon.ico"
+
+    logger.debug(f"Looking for icon at: {icon_path}")
     if icon_path.exists():
+        logger.debug("Icon file found, setting window icon.")
         app.setWindowIcon(QIcon(str(icon_path)))
+    else:
+        logger.warning(f"Icon file not found at {icon_path}")
     
     window = MainWindow()
     window.show()
