@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -278,14 +279,29 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
             except OSError:
                 logger.exception("Failed to fsync temp file")
 
-        os.replace(temp_path, path)
+        # Retry logic for replace to handle Windows file locking/AV interference
+        max_retries = 5
+        for attempt in range(max_retries):
+            try:
+                os.replace(temp_path, path)
+                break
+            except OSError:
+                if attempt == max_retries - 1:
+                    raise
+                time.sleep(0.1)
+
         _fsync_directory(path.parent)
     except Exception:
         if temp_path.exists():
-            try:
-                temp_path.unlink()
-            except OSError:
-                logger.exception("Failed to remove temp file")
+            # Retry logic for cleanup to handle Windows file locking
+            for attempt in range(5):
+                try:
+                    temp_path.unlink()
+                    break
+                except OSError:
+                    if attempt == 4:
+                        logger.exception("Failed to remove temp file")
+                    time.sleep(0.1)
         raise
 
 
