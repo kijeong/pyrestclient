@@ -262,26 +262,26 @@ def _pairs_from_dict_list(items: Any) -> list[tuple[str, str]]:
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    temp_path: Path | None = None
+    # Use mkstemp instead of NamedTemporaryFile to avoid file locking issues on Windows
+    fd, temp_path_str = tempfile.mkstemp(dir=str(path.parent), text=True)
+    # Close the low-level handle immediately so we can open it cleanly
+    os.close(fd)
+    
+    temp_path = Path(temp_path_str)
+
     try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
-            dir=str(path.parent),
-            delete=False,
-        ) as temp_file:
+        with temp_path.open("w", encoding="utf-8") as temp_file:
             json.dump(obj=payload, fp=temp_file, ensure_ascii=False, indent=2)
             temp_file.flush()
             try:
                 os.fsync(temp_file.fileno())
             except OSError:
                 logger.exception("Failed to fsync temp file")
-            temp_path = Path(temp_file.name)
 
         os.replace(temp_path, path)
         _fsync_directory(path.parent)
     except Exception:
-        if temp_path is not None and temp_path.exists():
+        if temp_path.exists():
             try:
                 temp_path.unlink()
             except OSError:
