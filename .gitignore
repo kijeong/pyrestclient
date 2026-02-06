@@ -11,7 +11,6 @@ env/
 # Distribution / Build
 build/
 dist/
-*.spec
 
 # PyInstaller
 *.manifest
