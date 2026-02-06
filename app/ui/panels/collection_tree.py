@@ -1,10 +1,12 @@
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
 from core.model import WorkspaceCollection, WorkspaceFolder, WorkspaceRequest
 
 
 class CollectionTreePanel(QWidget):
+    request_selected = Signal(str)
+
     _ID_ROLE = int(Qt.ItemDataRole.UserRole) + 1
     _TYPE_ROLE = int(Qt.ItemDataRole.UserRole) + 2
     _TYPE_COLLECTION = "collection"
@@ -18,11 +20,13 @@ class CollectionTreePanel(QWidget):
 
         self._tree = QTreeWidget()
         self._tree.setHeaderLabel("Collections")
+        self._tree.itemSelectionChanged.connect(self._on_selection_changed)
         layout.addWidget(self._tree)
 
         self._collection_id_counter = 1
         self._folder_id_counter = 1
         self._request_id_counter = 1
+        self._items_by_id: dict[str, QTreeWidgetItem] = {}
 
         self._populate_dummy_data()
 
@@ -88,6 +92,18 @@ class CollectionTreePanel(QWidget):
 
         self._tree.expandAll()
 
+    def _on_selection_changed(self) -> None:
+        items = self._tree.selectedItems()
+        if not items:
+            return
+        
+        item = items[0]
+        item_type = self._item_type(item)
+        if item_type == self._TYPE_REQUEST:
+            request_id = item.data(0, self._ID_ROLE)
+            if request_id:
+                self.request_selected.emit(request_id)
+
     def _populate_dummy_data(self) -> None:
         self._reset_counters()
         sample_collection = self._create_item("Sample API", self._TYPE_COLLECTION, "col-1")
@@ -108,6 +124,18 @@ class CollectionTreePanel(QWidget):
         self._tree.addTopLevelItem(sandbox_collection)
 
         self._tree.expandAll()
+
+    def select_request_item(self, request_id: str) -> None:
+        item = self._items_by_id.get(request_id)
+        if item is None:
+            return
+
+        current_items = self._tree.selectedItems()
+        if current_items and current_items[0] is item:
+            return
+
+        self._tree.setCurrentItem(item)
+        self._tree.scrollToItem(item)
 
     def _collect_folders(
         self,
@@ -139,6 +167,7 @@ class CollectionTreePanel(QWidget):
         item = QTreeWidgetItem([name])
         item.setData(0, self._ID_ROLE, resolved_id)
         item.setData(0, self._TYPE_ROLE, item_type)
+        self._items_by_id[resolved_id] = item
         if item_id is not None:
             self._track_counter(item_type, resolved_id)
         return item
@@ -177,6 +206,7 @@ class CollectionTreePanel(QWidget):
         self._collection_id_counter = 1
         self._folder_id_counter = 1
         self._request_id_counter = 1
+        self._items_by_id.clear()
 
     def _track_counter(self, item_type: str, item_id: str) -> None:
         if item_type == self._TYPE_COLLECTION:

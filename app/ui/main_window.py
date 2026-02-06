@@ -207,6 +207,8 @@ class MainWindow(QMainWindow):
         self._save_action.triggered.connect(self._on_save_workspace)
         self._save_as_action.triggered.connect(self._on_save_as_workspace)
         self._history_panel.entry_selected.connect(self._on_history_selected)
+        self._collection_tree.request_selected.connect(self._request_editor.select_request)
+        self._request_editor.request_selected.connect(self._collection_tree.select_request_item)
 
     def _init_layout(self) -> None:
         self._main_splitter = QSplitter(orientation=Qt.Orientation.Horizontal)

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -52,12 +53,15 @@ class RequestTabWidgets:
 
 
 class RequestEditorPanel(QWidget):
+    request_selected = Signal(str)
+
     def __init__(self) -> None:
         super().__init__()
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
         self._request_tabs = QTabWidget()
+        self._request_tabs.currentChanged.connect(self._on_tab_changed)
         layout.addWidget(self._request_tabs)
         self._request_tab_data: list[RequestTabWidgets] = []
         self._request_id_counter = 1
@@ -390,6 +394,19 @@ class RequestEditorPanel(QWidget):
         self._request_tabs.setTabText(tab_index, entry.name)
         # Note: History currently doesn't persist full body/files, so we don't clear/set them here to avoid data loss on simple history click.
         # Ideally history should store full request data.
+
+    def select_request(self, request_id: str) -> None:
+        for index, tab_data in enumerate(self._request_tab_data):
+            if tab_data.request_id == request_id:
+                if self._request_tabs.currentIndex() != index:
+                    self._request_tabs.setCurrentIndex(index)
+                return
+
+    def _on_tab_changed(self, index: int) -> None:
+        if index < 0 or index >= len(self._request_tab_data):
+            return
+        tab_data = self._request_tab_data[index]
+        self.request_selected.emit(tab_data.request_id)
 
     def _create_key_value_table(
         self,
