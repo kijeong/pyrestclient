@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import sys
 import traceback
+from pathlib import Path
 
 from PySide6.QtWidgets import QApplication, QMessageBox
 
@@ -33,10 +34,12 @@ def main() -> None:
         settings.setValue("log_level", log_level_str)
 
     log_path_str = settings.value("log_path")
-    if log_path_str is None:
-        # Default to empty string to indicate "use default path", but ensure key exists in JSON
-        settings.setValue("log_path", "")
-        log_path_str = ""
+    if not log_path_str:
+        # Default to installed path/logs/rest_client.log
+        base_dir = Path(__file__).resolve().parent.parent
+        log_path_default = base_dir / "logs" / "rest_client.log"
+        log_path_str = str(log_path_default)
+        settings.setValue("log_path", log_path_str)
 
     # Resolve log level
     log_level = logging.DEBUG
@@ -48,7 +51,6 @@ def main() -> None:
     elif isinstance(log_level_str, int):
         log_level = log_level_str
         
-    from pathlib import Path
     log_path = Path(log_path_str) if log_path_str else None
     
     configure_logging(log_path=log_path, level=log_level)
