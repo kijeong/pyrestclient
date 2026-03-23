@@ -1,4 +1,4 @@
-# Makefile for REST Client Prototype
+# Makefile for pyRestClient
 
 # Variables
 VENV_DIR = .venv
@@ -17,7 +17,7 @@ ARCHIVE_NAME = $(TARGET_NAME)-v$(VERSION)-linux-x86_64.tar.gz
 .PHONY: all install build clean run run-dist archive test help
 
 # Default target
-all: build
+all: archive
 
 # Install dependencies
 install:

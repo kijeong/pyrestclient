@@ -1,4 +1,4 @@
-# REST Client Prototype
+# pyRestClient
 
 A desktop REST API client built with Python 3.14 and PySide6 (Qt for Python).
 Designed for Rocky Linux 9 and Windows 11 environments.

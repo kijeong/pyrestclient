@@ -5,6 +5,8 @@ set PIP=%VENV_DIR%\Scripts\pip.exe
 set PYINSTALLER=%VENV_DIR%\Scripts\pyinstaller.exe
 set PYTEST=%VENV_DIR%\Scripts\pytest.exe
 set SPEC_FILE=rest_client.spec
+set TARGET_NAME=rest_client
+set DIST_DIR=dist
 
 if "%1" == "" goto all
 if "%1" == "all" goto all
@@ -20,7 +22,7 @@ echo Unknown target: %1
 goto help
 
 :all
-goto build
+goto archive
 
 :install
 echo Installing dependencies...
@@ -40,8 +42,14 @@ echo Building application...
 goto end
 
 :archive
-echo Archive creation is not fully supported in this batch file.
-echo Please use the build command and zip the output manually or use a proper shell.
+call %0 build
+for /f %%i in ('%PYTHON% -c "import app; print(app.__version__)"') do set VERSION=%%i
+if "%VERSION%" == "" set VERSION=0.1.0
+set ARCHIVE_NAME=%TARGET_NAME%-v%VERSION%-windows-x86_64.zip
+echo Creating archive %ARCHIVE_NAME%...
+if exist "%DIST_DIR%\%ARCHIVE_NAME%" del /q "%DIST_DIR%\%ARCHIVE_NAME%"
+powershell -Command "Compress-Archive -Path '%DIST_DIR%\%TARGET_NAME%' -DestinationPath '%DIST_DIR%\%ARCHIVE_NAME%'"
+echo Archive created: %DIST_DIR%\%ARCHIVE_NAME%
 goto end
 
 :clean
@@ -58,7 +66,7 @@ echo Running application...
 goto end
 
 :run-dist
-set TARGET_BIN=dist\rest_client\rest_client.exe
+set TARGET_BIN=%DIST_DIR%\%TARGET_NAME%\%TARGET_NAME%.exe
 if exist "%TARGET_BIN%" (
     "%TARGET_BIN%"
 ) else (
@@ -71,6 +79,7 @@ goto end
 echo Available targets:
 echo   install   - Install dependencies (including PyInstaller)
 echo   build     - Build the application using PyInstaller
+echo   archive   - Create a zip archive for Windows distribution
 echo   test      - Run unit tests using pytest
 echo   clean     - Remove build artifacts
 echo   run       - Run the application from source code

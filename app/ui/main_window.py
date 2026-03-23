@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app import __version__
 from app.ui.panels.collection_tree import CollectionTreePanel
 from app.ui.panels.history_panel import HistoryPanel
 from app.ui.panels.request_editor import RequestEditorPanel
@@ -52,7 +53,7 @@ _LOGGER = get_logger(__name__)
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("REST Client Prototype")
+        self.setWindowTitle(f"pyRestClient v{__version__}")
         self.resize(1200, 800)
 
         self._settings = AppSettings()
