@@ -1,7 +1,7 @@
 # REST Client Prototype
 
 A desktop REST API client built with Python 3.14 and PySide6 (Qt for Python).
-Designed for Rocky Linux 9 environments.
+Designed for Rocky Linux 9 and Windows 11 environments.
 
 ## Features
 
@@ -17,7 +17,7 @@ Designed for Rocky Linux 9 environments.
 
 ## Requirements
 
-- **OS**: Rocky Linux 9 (x86_64)
+- **OS**: Rocky Linux 9 (x86_64), Windows 11
 - **Python**: 3.14+
 - **GUI Framework**: PySide6 6.10.1+
 
@@ -30,14 +30,32 @@ Designed for Rocky Linux 9 environments.
    ```
 
 2. Create and activate a virtual environment:
+
+   **Linux:**
    ```bash
    python3.14 -m venv .venv
    source .venv/bin/activate
    ```
 
+   **Windows:**
+   ```cmd
+   python -m venv .venv
+   call .venv\Scripts\activate
+   ```
+
 3. Install dependencies:
+
+   **Linux:**
    ```bash
    make install
+   # or manually:
+   pip install -r requirements.txt
+   pip install pyinstaller
+   ```
+
+   **Windows (PowerShell):**
+   ```powershell
+   .\make install
    # or manually:
    pip install -r requirements.txt
    pip install pyinstaller
@@ -49,8 +67,16 @@ Designed for Rocky Linux 9 environments.
 
 To run the application directly from the source code:
 
+**Linux:**
 ```bash
 make run
+# or manually:
+python -m app.main
+```
+
+**Windows (PowerShell):**
+```powershell
+.\make run
 # or manually:
 python -m app.main
 ```
@@ -59,15 +85,41 @@ python -m app.main
 
 To build a standalone executable using PyInstaller:
 
+**Linux:**
 ```bash
 make build
 ```
 The executable will be generated at `dist/rest_client/rest_client`.
 
+**Windows (PowerShell):**
+```powershell
+.\make build
+```
+The executable will be generated at `dist\rest_client\rest_client.exe`.
+
+### Running the Built Executable
+
+After building, you can run the standalone executable directly:
+
+**Linux:**
+```bash
+make run-dist
+# or manually:
+./dist/rest_client/rest_client
+```
+
+**Windows (PowerShell):**
+```powershell
+.\make run-dist
+# or manually:
+.\dist\rest_client\rest_client.exe
+```
+
 ### Creating a Release Archive
 
 To build and package the application into a `.tar.gz` archive for distribution:
 
+**Linux:**
 ```bash
 make archive
 ```
